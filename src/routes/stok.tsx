@@ -1,205 +1,239 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
-import { getBarang, saveBarang, formatRupiah, type Barang } from "@/lib/storage";
-import { Pencil, Trash2, Plus, X, CheckCircle2, AlertCircle } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import {
+  getBarang,
+  saveBarang,
+  formatRupiah,
+  hitungHargaJual,
+  hariSampaiExpired,
+  persenStok,
+  statusStok,
+  type Barang,
+} from "@/lib/storage";
+import { toast } from "sonner";
+import { Pencil, Trash2, Plus, X, AlertTriangle, Clock } from "lucide-react";
 
 export const Route = createFileRoute("/stok")({
-  head: () => ({
-    meta: [
-      { title: "Manajemen Stok — Toko Sembako" },
-      { name: "description", content: "Tambah, ubah, dan hapus stok barang toko sembako." },
-    ],
-  }),
+  head: () => ({ meta: [{ title: "Stok — Toko Sembako" }] }),
   component: StokPage,
 });
 
 type FormState = {
   nama: string;
+  kategori: string;
   hargaBeli: string;
-  hargaJual: string;
+  marginPersen: string;
+  stokAwal: string;
   stok: string;
   expired: string;
 };
-
-const empty: FormState = { nama: "", hargaBeli: "", hargaJual: "", stok: "", expired: "" };
+const empty: FormState = {
+  nama: "",
+  kategori: "Sembako",
+  hargaBeli: "",
+  marginPersen: "20",
+  stokAwal: "",
+  stok: "",
+  expired: "",
+};
 
 function StokPage() {
   const [items, setItems] = useState<Barang[]>([]);
   const [form, setForm] = useState<FormState>(empty);
   const [editId, setEditId] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
-  const [msg, setMsg] = useState<{ type: "ok" | "err"; text: string } | null>(null);
+  const [q, setQ] = useState("");
 
   useEffect(() => {
     setItems(getBarang());
   }, []);
 
-  useEffect(() => {
-    if (!msg) return;
-    const t = setTimeout(() => setMsg(null), 3000);
-    return () => clearTimeout(t);
-  }, [msg]);
+  const hargaJualPreview = useMemo(() => {
+    const hb = Number(form.hargaBeli) || 0;
+    const m = Number(form.marginPersen) || 0;
+    return hitungHargaJual(hb, m);
+  }, [form.hargaBeli, form.marginPersen]);
+
+  const filtered = useMemo(
+    () => items.filter((b) => b.nama.toLowerCase().includes(q.toLowerCase())),
+    [items, q],
+  );
 
   function persist(next: Barang[]) {
     setItems(next);
     saveBarang(next);
   }
-
   function openAdd() {
     setEditId(null);
     setForm(empty);
     setOpen(true);
   }
-
   function openEdit(b: Barang) {
     setEditId(b.id);
     setForm({
       nama: b.nama,
+      kategori: b.kategori,
       hargaBeli: String(b.hargaBeli),
-      hargaJual: String(b.hargaJual),
+      marginPersen: String(b.marginPersen),
+      stokAwal: String(b.stokAwal),
       stok: String(b.stok),
       expired: b.expired,
     });
     setOpen(true);
   }
-
   function handleHapus(id: string) {
     if (!confirm("Hapus barang ini?")) return;
     persist(items.filter((b) => b.id !== id));
-    setMsg({ type: "ok", text: "Barang berhasil dihapus." });
+    toast.success("Barang dihapus.");
   }
-
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    const nama = form.nama.trim();
-    const hargaBeli = Number(form.hargaBeli);
-    const hargaJual = Number(form.hargaJual);
-    const stok = Number(form.stok);
-    const expired = form.expired;
+    try {
+      const nama = form.nama.trim();
+      const kategori = form.kategori.trim() || "Lainnya";
+      const hargaBeli = Number(form.hargaBeli);
+      const margin = Number(form.marginPersen);
+      const stokAwal = Number(form.stokAwal);
+      const stok = form.stok === "" ? stokAwal : Number(form.stok);
+      const expired = form.expired;
 
-    if (!nama) return setMsg({ type: "err", text: "Nama barang wajib diisi." });
-    if (!Number.isFinite(hargaBeli) || hargaBeli < 0)
-      return setMsg({ type: "err", text: "Harga beli harus angka ≥ 0." });
-    if (!Number.isFinite(hargaJual) || hargaJual < 0)
-      return setMsg({ type: "err", text: "Harga jual harus angka ≥ 0." });
-    if (!Number.isInteger(stok) || stok < 0)
-      return setMsg({ type: "err", text: "Stok tidak boleh negatif." });
-    if (!expired) return setMsg({ type: "err", text: "Tanggal expired wajib diisi." });
+      if (!nama) throw new Error("Nama barang wajib diisi.");
+      if (!Number.isFinite(hargaBeli) || hargaBeli < 0) throw new Error("Harga beli ≥ 0.");
+      if (!Number.isFinite(margin) || margin < 0) throw new Error("Margin ≥ 0.");
+      if (!Number.isInteger(stokAwal) || stokAwal < 0) throw new Error("Stok awal ≥ 0.");
+      if (!Number.isInteger(stok) || stok < 0) throw new Error("Stok sekarang ≥ 0.");
+      if (!expired) throw new Error("Tanggal expired wajib diisi.");
 
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const exp = new Date(expired);
-    exp.setHours(0, 0, 0, 0);
-    if (exp.getTime() < today.getTime())
-      return setMsg({ type: "err", text: "Tanggal expired tidak boleh sebelum hari ini." });
-
-    if (editId) {
-      persist(
-        items.map((b) =>
-          b.id === editId ? { ...b, nama, hargaBeli, hargaJual, stok, expired } : b,
-        ),
-      );
-      setMsg({ type: "ok", text: "Barang berhasil diperbarui." });
-    } else {
-      const baru: Barang = {
-        id: crypto.randomUUID(),
-        nama,
-        hargaBeli,
-        hargaJual,
-        stok,
-        expired,
-      };
-      persist([baru, ...items]);
-      setMsg({ type: "ok", text: "Barang berhasil ditambahkan." });
+      const hargaJual = hitungHargaJual(hargaBeli, margin);
+      if (editId) {
+        persist(
+          items.map((b) =>
+            b.id === editId
+              ? { ...b, nama, kategori, hargaBeli, marginPersen: margin, hargaJual, stokAwal, stok, expired }
+              : b,
+          ),
+        );
+        toast.success("Barang diperbarui.");
+      } else {
+        const baru: Barang = {
+          id: crypto.randomUUID(),
+          nama,
+          kategori,
+          hargaBeli,
+          marginPersen: margin,
+          hargaJual,
+          stokAwal,
+          stok,
+          expired,
+        };
+        persist([baru, ...items]);
+        toast.success("Barang ditambahkan.");
+      }
+      setOpen(false);
+    } catch (err: any) {
+      toast.error(err.message || "Gagal menyimpan.");
     }
-    setOpen(false);
-    setForm(empty);
-    setEditId(null);
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <div className="flex items-center justify-between gap-3">
         <div>
           <h2 className="text-2xl font-bold">Manajemen Stok</h2>
-          <p className="text-sm text-muted-foreground">Kelola seluruh barang toko Anda</p>
+          <p className="text-sm text-muted-foreground">Kelola barang, harga & expired</p>
         </div>
         <button
           onClick={openAdd}
-          className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground shadow hover:opacity-90"
+          className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground shadow"
         >
           <Plus className="h-4 w-4" /> Tambah
         </button>
       </div>
 
-      {msg && (
-        <div
-          className={`flex items-center gap-2 rounded-lg border px-4 py-3 text-sm ${
-            msg.type === "ok"
-              ? "border-primary/30 bg-[var(--primary-soft)] text-primary"
-              : "border-destructive/30 bg-destructive/10 text-destructive"
-          }`}
-        >
-          {msg.type === "ok" ? (
-            <CheckCircle2 className="h-4 w-4" />
-          ) : (
-            <AlertCircle className="h-4 w-4" />
-          )}
-          {msg.text}
-        </div>
-      )}
+      <input
+        placeholder="Cari barang..."
+        value={q}
+        onChange={(e) => setQ(e.target.value)}
+        className="w-full rounded-lg border border-input bg-card px-3 py-2.5 text-sm outline-none focus:border-primary"
+      />
 
-      <div className="overflow-hidden rounded-xl border border-border bg-card">
-        {items.length === 0 ? (
-          <div className="p-8 text-center text-sm text-muted-foreground">
-            Belum ada barang. Klik "Tambah" untuk memulai.
+      <div className="space-y-2">
+        {filtered.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
+            Belum ada barang.
           </div>
         ) : (
-          items.map((b) => (
-            <div
-              key={b.id}
-              className="flex flex-col gap-3 border-b border-border p-4 last:border-0 sm:flex-row sm:items-center sm:justify-between"
-            >
-              <div className="flex-1">
-                <div className="font-semibold">{b.nama}</div>
-                <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
-                  <span>Stok: <b className="text-foreground">{b.stok}</b></span>
-                  <span>Beli: {formatRupiah(b.hargaBeli)}</span>
-                  <span>Jual: {formatRupiah(b.hargaJual)}</span>
-                  <span>Exp: {b.expired}</span>
+          filtered.map((b) => {
+            const sisaHari = hariSampaiExpired(b.expired);
+            const sStok = statusStok(b);
+            const sExp = sisaHari < 0 ? "expired" : sisaHari <= 14 ? "danger" : "ok";
+            return (
+              <div key={b.id} className="rounded-xl border border-border bg-card p-4">
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <div className="font-semibold">{b.nama}</div>
+                      <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">
+                        {b.kategori}
+                      </span>
+                    </div>
+                    <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                      <span>
+                        Stok: <b className="text-foreground">{b.stok}</b>/{b.stokAwal} ({persenStok(b)}%)
+                      </span>
+                      <span>Beli: {formatRupiah(b.hargaBeli)}</span>
+                      <span>
+                        Margin: <b className="text-foreground">{b.marginPersen}%</b>
+                      </span>
+                      <span>
+                        Jual: <b className="text-primary">{formatRupiah(b.hargaJual)}</b>
+                      </span>
+                      <span>Exp: {b.expired}</span>
+                    </div>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {sStok === "habis" && <Badge tone="danger">Stok Habis</Badge>}
+                      {sStok === "menipis" && (
+                        <Badge tone="warning">
+                          <AlertTriangle className="h-3 w-3" />
+                          Stok Menipis ({persenStok(b)}% tersisa)
+                        </Badge>
+                      )}
+                      {sExp === "expired" && <Badge tone="danger">Sudah Expired</Badge>}
+                      {sExp === "danger" && sisaHari >= 0 && (
+                        <Badge tone="danger">
+                          <Clock className="h-3 w-3" />
+                          Segera Jual! Expired dalam {sisaHari} hari · saran diskon 20–30%
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => openEdit(b)}
+                      className="inline-flex items-center gap-1 rounded-lg border border-border px-3 py-2 text-sm hover:bg-accent"
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </button>
+                    <button
+                      onClick={() => handleHapus(b.id)}
+                      className="inline-flex items-center gap-1 rounded-lg bg-destructive px-3 py-2 text-sm text-destructive-foreground"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
                 </div>
               </div>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => openEdit(b)}
-                  className="inline-flex items-center gap-1 rounded-lg border border-border bg-card px-3 py-2 text-sm font-medium hover:bg-accent"
-                >
-                  <Pencil className="h-4 w-4" /> Edit
-                </button>
-                <button
-                  onClick={() => handleHapus(b.id)}
-                  className="inline-flex items-center gap-1 rounded-lg bg-destructive px-3 py-2 text-sm font-medium text-destructive-foreground hover:opacity-90"
-                >
-                  <Trash2 className="h-4 w-4" /> Hapus
-                </button>
-              </div>
-            </div>
-          ))
+            );
+          })
         )}
       </div>
 
       {open && (
-        <div className="fixed inset-0 z-20 flex items-end justify-center bg-foreground/40 p-0 sm:items-center sm:p-4">
-          <div className="w-full max-w-lg rounded-t-2xl bg-card p-5 shadow-xl sm:rounded-2xl">
+        <div className="fixed inset-0 z-20 flex items-end justify-center bg-foreground/40 sm:items-center sm:p-4">
+          <div className="max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-t-2xl bg-card p-5 shadow-xl sm:rounded-2xl">
             <div className="mb-4 flex items-center justify-between">
-              <h3 className="text-lg font-bold">
-                {editId ? "Edit Barang" : "Tambah Barang"}
-              </h3>
-              <button
-                onClick={() => setOpen(false)}
-                className="rounded-lg p-2 hover:bg-accent"
-                aria-label="Tutup"
-              >
+              <h3 className="text-lg font-bold">{editId ? "Edit Barang" : "Tambah Barang"}</h3>
+              <button onClick={() => setOpen(false)} className="rounded-lg p-2 hover:bg-accent">
                 <X className="h-4 w-4" />
               </button>
             </div>
@@ -209,7 +243,14 @@ function StokPage() {
                   className={inputCls}
                   value={form.nama}
                   onChange={(e) => setForm({ ...form, nama: e.target.value })}
-                  placeholder="Contoh: Beras 5kg"
+                />
+              </Field>
+              <Field label="Kategori">
+                <input
+                  className={inputCls}
+                  value={form.kategori}
+                  onChange={(e) => setForm({ ...form, kategori: e.target.value })}
+                  placeholder="Sembako / Minuman / Roti / dll"
                 />
               </Field>
               <div className="grid grid-cols-2 gap-3">
@@ -222,18 +263,36 @@ function StokPage() {
                     onChange={(e) => setForm({ ...form, hargaBeli: e.target.value })}
                   />
                 </Field>
-                <Field label="Harga Jual">
+                <Field label="Margin (%)">
                   <input
                     type="number"
                     min={0}
                     className={inputCls}
-                    value={form.hargaJual}
-                    onChange={(e) => setForm({ ...form, hargaJual: e.target.value })}
+                    value={form.marginPersen}
+                    onChange={(e) => setForm({ ...form, marginPersen: e.target.value })}
                   />
                 </Field>
               </div>
+              <div className="rounded-lg bg-[var(--primary-soft)] px-3 py-2 text-sm">
+                Harga Jual Otomatis: <b className="text-primary">{formatRupiah(hargaJualPreview)}</b>
+              </div>
               <div className="grid grid-cols-2 gap-3">
                 <Field label="Stok Awal">
+                  <input
+                    type="number"
+                    min={0}
+                    className={inputCls}
+                    value={form.stokAwal}
+                    onChange={(e) =>
+                      setForm({
+                        ...form,
+                        stokAwal: e.target.value,
+                        stok: editId ? form.stok : e.target.value,
+                      })
+                    }
+                  />
+                </Field>
+                <Field label="Stok Sekarang">
                   <input
                     type="number"
                     min={0}
@@ -242,26 +301,26 @@ function StokPage() {
                     onChange={(e) => setForm({ ...form, stok: e.target.value })}
                   />
                 </Field>
-                <Field label="Tanggal Expired">
-                  <input
-                    type="date"
-                    className={inputCls}
-                    value={form.expired}
-                    onChange={(e) => setForm({ ...form, expired: e.target.value })}
-                  />
-                </Field>
               </div>
+              <Field label="Tanggal Expired">
+                <input
+                  type="date"
+                  className={inputCls}
+                  value={form.expired}
+                  onChange={(e) => setForm({ ...form, expired: e.target.value })}
+                />
+              </Field>
               <div className="flex gap-2 pt-2">
                 <button
                   type="button"
                   onClick={() => setOpen(false)}
-                  className="flex-1 rounded-lg border border-border bg-card px-4 py-3 text-sm font-medium hover:bg-accent"
+                  className="flex-1 rounded-lg border border-border px-4 py-3 text-sm font-medium hover:bg-accent"
                 >
                   Batal
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 rounded-lg bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground hover:opacity-90"
+                  className="flex-1 rounded-lg bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground"
                 >
                   Simpan
                 </button>
@@ -283,5 +342,17 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
       <span className="mb-1 block text-xs font-medium text-muted-foreground">{label}</span>
       {children}
     </label>
+  );
+}
+
+function Badge({ tone, children }: { tone: "warning" | "danger"; children: React.ReactNode }) {
+  const cls =
+    tone === "warning"
+      ? "bg-[var(--warning)] text-[var(--warning-foreground)]"
+      : "bg-destructive text-destructive-foreground";
+  return (
+    <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold ${cls}`}>
+      {children}
+    </span>
   );
 }
