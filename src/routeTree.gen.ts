@@ -10,11 +10,17 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as StokRouteImport } from './routes/stok'
+import { Route as KasirRouteImport } from './routes/kasir'
 import { Route as IndexRouteImport } from './routes/index'
 
 const StokRoute = StokRouteImport.update({
   id: '/stok',
   path: '/stok',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const KasirRoute = KasirRouteImport.update({
+  id: '/kasir',
+  path: '/kasir',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IndexRoute = IndexRouteImport.update({
@@ -25,27 +31,31 @@ const IndexRoute = IndexRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/kasir': typeof KasirRoute
   '/stok': typeof StokRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/kasir': typeof KasirRoute
   '/stok': typeof StokRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/kasir': typeof KasirRoute
   '/stok': typeof StokRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/stok'
+  fullPaths: '/' | '/kasir' | '/stok'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/stok'
-  id: '__root__' | '/' | '/stok'
+  to: '/' | '/kasir' | '/stok'
+  id: '__root__' | '/' | '/kasir' | '/stok'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  KasirRoute: typeof KasirRoute
   StokRoute: typeof StokRoute
 }
 
@@ -56,6 +66,13 @@ declare module '@tanstack/react-router' {
       path: '/stok'
       fullPath: '/stok'
       preLoaderRoute: typeof StokRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/kasir': {
+      id: '/kasir'
+      path: '/kasir'
+      fullPath: '/kasir'
+      preLoaderRoute: typeof KasirRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/': {
@@ -70,6 +87,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  KasirRoute: KasirRoute,
   StokRoute: StokRoute,
 }
 export const routeTree = rootRouteImport
