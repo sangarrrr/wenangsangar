@@ -12,7 +12,7 @@ import {
   type Piutang,
 } from "@/lib/storage";
 import { toast } from "sonner";
-import { Trash2, Plus, Printer, Receipt } from "lucide-react";
+import { Trash2, Plus, Printer, Receipt, Package, PackageOpen } from "lucide-react";
 
 export const Route = createFileRoute("/kasir")({
   head: () => ({ meta: [{ title: "Kasir — Toko Sembako" }] }),
@@ -38,7 +38,7 @@ function KasirPage() {
   }, []);
 
   const opsi = useMemo(
-    () => barang.filter((b) => b.stok > 0 && b.nama.toLowerCase().includes(q.toLowerCase())),
+    () => barang.filter((b) => b.nama.toLowerCase().includes(q.toLowerCase())),
     [barang, q],
   );
 
@@ -50,6 +50,10 @@ function KasirPage() {
   }, [items, barang]);
 
   function tambah(b: Barang) {
+    if (b.stok <= 0) {
+      toast.error(`${b.nama} habis`);
+      return;
+    }
     setItems((prev) => {
       const ada = prev.find((p) => p.produkId === b.id);
       if (ada) {
@@ -61,7 +65,6 @@ function KasirPage() {
       }
       return [...prev, { produkId: b.id, jumlah: 1 }];
     });
-    setQ("");
   }
 
   function ubahJumlah(id: string, j: number) {
@@ -190,30 +193,61 @@ function KasirPage() {
           onChange={(e) => setQ(e.target.value)}
           className="w-full rounded-lg border border-input bg-card px-3 py-2.5 text-sm outline-none focus:border-primary"
         />
-        {q && (
-          <div className="rounded-xl border border-border bg-card">
-            {opsi.length === 0 ? (
-              <div className="p-4 text-center text-sm text-muted-foreground">Tidak ada hasil</div>
-            ) : (
-              opsi.slice(0, 8).map((b) => (
+        {barang.length === 0 ? (
+          <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border bg-card p-10 text-center">
+            <PackageOpen className="h-12 w-12 text-muted-foreground" />
+            <p className="mt-3 text-sm font-medium">Belum ada stok</p>
+            <p className="text-xs text-muted-foreground">Tambahkan barang di menu Stok</p>
+          </div>
+        ) : opsi.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-border bg-card p-8 text-center text-sm text-muted-foreground">
+            Tidak ada hasil untuk "{q}"
+          </div>
+        ) : (
+          <div className="grid max-h-[calc(100vh-260px)] grid-cols-2 gap-3 overflow-y-auto pr-1 sm:grid-cols-3 xl:grid-cols-4">
+            {opsi.map((b) => {
+              const habis = b.stok <= 0;
+              const foto = (b as any).foto as string | undefined;
+              return (
                 <button
                   key={b.id}
                   onClick={() => tambah(b)}
-                  className="flex w-full items-center justify-between gap-2 border-b border-border p-3 text-left last:border-0 hover:bg-accent"
+                  disabled={habis}
+                  className="group flex flex-col overflow-hidden rounded-xl border border-border bg-card text-left shadow-sm transition hover:shadow-md disabled:opacity-60"
                 >
-                  <div>
-                    <div className="text-sm font-medium">{b.nama}</div>
-                    <div className="text-xs text-muted-foreground">Stok: {b.stok}</div>
+                  <div className="relative flex aspect-square w-full items-center justify-center bg-muted">
+                    {foto ? (
+                      <img src={foto} alt={b.nama} className="h-full w-full object-cover" />
+                    ) : (
+                      <Package className="h-10 w-10 text-muted-foreground/60" />
+                    )}
+                    {habis && (
+                      <span className="absolute right-1.5 top-1.5 rounded-md bg-destructive px-1.5 py-0.5 text-[10px] font-bold text-destructive-foreground">
+                        HABIS
+                      </span>
+                    )}
                   </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-semibold text-primary">
+                  <div className="flex flex-1 flex-col gap-1 p-2.5">
+                    <div className="line-clamp-2 text-sm font-semibold leading-tight">
+                      {b.nama}
+                    </div>
+                    <div className="text-sm font-bold text-primary">
                       {formatRupiah(b.hargaJual)}
-                    </span>
-                    <Plus className="h-4 w-4" />
+                    </div>
+                    <div className="mt-auto flex items-center justify-between pt-1">
+                      <span className="text-[11px] text-muted-foreground">Stok: {b.stok}</span>
+                      <span
+                        className={`flex h-6 w-6 items-center justify-center rounded-md ${
+                          habis ? "bg-muted text-muted-foreground" : "bg-primary text-primary-foreground"
+                        }`}
+                      >
+                        <Plus className="h-3.5 w-3.5" />
+                      </span>
+                    </div>
                   </div>
                 </button>
-              ))
-            )}
+              );
+            })}
           </div>
         )}
       </div>
