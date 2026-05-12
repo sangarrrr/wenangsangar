@@ -1,179 +1,264 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
-import { getBarang, formatRupiah, hariSampaiExpired, type Barang } from "@/lib/storage";
-import { AlertTriangle, CalendarClock, TrendingUp } from "lucide-react";
+import {
+  getBarang,
+  getTransaksi,
+  getPiutang,
+  getLabaBersih,
+  formatRupiah,
+  hariSampaiExpired,
+  persenStok,
+  type Barang,
+  type Transaksi,
+  type Piutang,
+} from "@/lib/storage";
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell,
+  LineChart,
+  Line,
+  CartesianGrid,
+} from "recharts";
+import { TrendingUp, AlertTriangle, CalendarClock, Wallet } from "lucide-react";
 
 export const Route = createFileRoute("/")({
-  head: () => ({
-    meta: [
-      { title: "Dashboard — Toko Sembako" },
-      { name: "description", content: "Ringkasan penjualan dan stok toko sembako." },
-    ],
-  }),
-  component: Index,
+  head: () => ({ meta: [{ title: "Dashboard — Toko Sembako" }] }),
+  component: Dashboard,
 });
 
-type Filter = "semua" | "expired" | "menipis";
+const PIE_COLORS = ["#10B981", "#3B82F6", "#F59E0B", "#EF4444", "#8B5CF6", "#EC4899", "#14B8A6", "#F97316", "#6366F1", "#84CC16"];
 
-function Index() {
-  const [items, setItems] = useState<Barang[]>([]);
-  const [filter, setFilter] = useState<Filter>("semua");
+function Dashboard() {
+  const [barang, setBarang] = useState<Barang[]>([]);
+  const [trx, setTrx] = useState<Transaksi[]>([]);
+  const [piutang, setPiutang] = useState<Piutang[]>([]);
 
   useEffect(() => {
-    setItems(getBarang());
+    const refresh = () => {
+      setBarang(getBarang());
+      setTrx(getTransaksi());
+      setPiutang(getPiutang());
+    };
+    refresh();
+    window.addEventListener("sembako-update", refresh);
+    return () => window.removeEventListener("sembako-update", refresh);
   }, []);
 
-  const totalPenjualan = 0; // belum ada modul penjualan
-  const stokMenipis = items.filter((b) => b.stok < 5).length;
-  const hampirExpired = items.filter((b) => {
+  const today = new Date();
+  const todayStr = today.toDateString();
+  const totalHariIni = trx
+    .filter((t) => new Date(t.tanggal).toDateString() === todayStr)
+    .reduce((s, t) => s + t.total, 0);
+
+  const stokMenipis = barang.filter((b) => b.stok > 0 && persenStok(b) <= 30).length;
+  const hampirExpired = barang.filter((b) => {
     const d = hariSampaiExpired(b.expired);
-    return d >= 0 && d <= 3;
+    return d >= 0 && d <= 14;
   }).length;
 
-  const filtered = useMemo(() => {
-    if (filter === "expired")
-      return items.filter((b) => {
-        const d = hariSampaiExpired(b.expired);
-        return d >= 0 && d <= 3;
+  const ringkasan = getLabaBersih(today.getMonth() + 1, today.getFullYear());
+  const piutangBelum = piutang
+    .filter((p) => p.status !== "Lunas")
+    .reduce((s, p) => s + p.sisaHutang, 0);
+
+  const totalUangMasuk = trx
+    .filter((t) => {
+      const d = new Date(t.tanggal);
+      return (
+        d.getMonth() === today.getMonth() &&
+        d.getFullYear() === today.getFullYear() &&
+        t.metode === "Cash"
+      );
+    })
+    .reduce((s, t) => s + t.total, 0);
+
+  const rasioKas =
+    totalUangMasuk + piutangBelum === 0
+      ? 100
+      : Math.round((totalUangMasuk / (totalUangMasuk + piutangBelum)) * 100);
+  const rasioColor = rasioKas > 70 ? "bg-primary" : rasioKas >= 40 ? "bg-[var(--warning)]" : "bg-destructive";
+
+  // Top 5 paling sering dibeli (jumlah)
+  const topJumlah = useMemo(() => {
+    const map = new Map<string, { nama: string; jumlah: number }>();
+    trx.forEach((t) => {
+      const e = map.get(t.produkId) ?? { nama: t.namaProduk, jumlah: 0 };
+      e.jumlah += t.jumlah;
+      map.set(t.produkId, e);
+    });
+    return [...map.values()].sort((a, b) => b.jumlah - a.jumlah).slice(0, 5);
+  }, [trx]);
+
+  // Top profit
+  const topProfit = useMemo(() => {
+    const map = new Map<string, { nama: string; profit: number }>();
+    trx.forEach((t) => {
+      const e = map.get(t.produkId) ?? { nama: t.namaProduk, profit: 0 };
+      e.profit += t.profit;
+      map.set(t.produkId, e);
+    });
+    return [...map.values()]
+      .filter((x) => x.profit > 0)
+      .sort((a, b) => b.profit - a.profit)
+      .slice(0, 8);
+  }, [trx]);
+
+  // Tren 30 hari
+  const tren30 = useMemo(() => {
+    const arr: { tgl: string; total: number }[] = [];
+    for (let i = 29; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const key = d.toDateString();
+      const total = trx
+        .filter((t) => new Date(t.tanggal).toDateString() === key)
+        .reduce((s, t) => s + t.total, 0);
+      arr.push({
+        tgl: d.toLocaleDateString("id-ID", { day: "2-digit", month: "short" }),
+        total,
       });
-    if (filter === "menipis") return items.filter((b) => b.stok < 5);
-    return items;
-  }, [items, filter]);
+    }
+    return arr;
+  }, [trx]);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <div>
         <h2 className="text-2xl font-bold">Dashboard</h2>
         <p className="text-sm text-muted-foreground">Ringkasan toko hari ini</p>
       </div>
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <SummaryCard
-          icon={<TrendingUp className="h-5 w-5" />}
-          label="Total Penjualan Hari Ini"
-          value={formatRupiah(totalPenjualan)}
-          tone="primary"
-        />
-        <SummaryCard
-          icon={<AlertTriangle className="h-5 w-5" />}
-          label="Stok Menipis (<5)"
-          value={`${stokMenipis} barang`}
-          tone="warning"
-        />
-        <SummaryCard
-          icon={<CalendarClock className="h-5 w-5" />}
-          label="Hampir Expired (≤3 hari)"
-          value={`${hampirExpired} barang`}
-          tone="danger"
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        <SumCard icon={<TrendingUp className="h-4 w-4" />} label="Penjualan Hari Ini" value={formatRupiah(totalHariIni)} tone="primary" />
+        <SumCard icon={<AlertTriangle className="h-4 w-4" />} label="Stok Menipis" value={`${stokMenipis} item`} tone="warning" />
+        <SumCard icon={<CalendarClock className="h-4 w-4" />} label="Hampir Expired" value={`${hampirExpired} item`} tone="danger" />
+        <SumCard icon={<Wallet className="h-4 w-4" />} label="Piutang Aktif" value={formatRupiah(piutangBelum)} tone="warning" />
+      </div>
+
+      <div className="grid gap-3 md:grid-cols-3">
+        <MiniCard label="💵 Uang Masuk (Bulan Ini)" value={formatRupiah(totalUangMasuk)} />
+        <MiniCard label="💸 Pengeluaran" value={formatRupiah(ringkasan.pengeluaran)} />
+        <MiniCard
+          label="✅ Laba Bersih"
+          value={formatRupiah(ringkasan.laba)}
+          highlight={ringkasan.laba >= 0 ? "primary" : "danger"}
         />
       </div>
 
-      <div className="flex flex-wrap gap-2">
-        <FilterBtn active={filter === "semua"} onClick={() => setFilter("semua")}>
-          Tampilkan Semua
-        </FilterBtn>
-        <FilterBtn active={filter === "expired"} onClick={() => setFilter("expired")}>
-          Hampir Expired
-        </FilterBtn>
-        <FilterBtn active={filter === "menipis"} onClick={() => setFilter("menipis")}>
-          Stok Menipis
-        </FilterBtn>
-      </div>
-
-      <div className="overflow-hidden rounded-xl border border-border bg-card">
-        <div className="hidden grid-cols-12 gap-2 border-b border-border bg-muted px-4 py-3 text-xs font-semibold uppercase text-muted-foreground sm:grid">
-          <div className="col-span-5">Nama</div>
-          <div className="col-span-2">Stok</div>
-          <div className="col-span-3">Harga Jual</div>
-          <div className="col-span-2">Expired</div>
+      <div className="rounded-xl border border-border bg-card p-4">
+        <div className="flex items-center justify-between text-sm">
+          <span className="font-semibold">Rasio Kas vs Piutang</span>
+          <span className="font-bold">{rasioKas}%</span>
         </div>
-        {filtered.length === 0 ? (
-          <div className="p-8 text-center text-sm text-muted-foreground">
-            Belum ada barang. Tambahkan di menu Manajemen Stok.
-          </div>
-        ) : (
-          filtered.map((b) => {
-            const sisa = hariSampaiExpired(b.expired);
-            const danger = sisa <= 3;
-            const low = b.stok < 5;
-            return (
-              <div
-                key={b.id}
-                className="grid grid-cols-2 gap-2 border-b border-border px-4 py-3 last:border-0 sm:grid-cols-12 sm:items-center"
-              >
-                <div className="col-span-2 font-medium sm:col-span-5">{b.nama}</div>
-                <div className="col-span-1 sm:col-span-2">
-                  <span className={low ? "font-semibold text-destructive" : ""}>{b.stok}</span>
-                </div>
-                <div className="col-span-1 sm:col-span-3">{formatRupiah(b.hargaJual)}</div>
-                <div className="col-span-2 text-sm sm:col-span-2">
-                  <span className={danger ? "font-semibold text-destructive" : ""}>
-                    {b.expired}
-                  </span>
-                  <span className="ml-1 text-xs text-muted-foreground">
-                    ({sisa < 0 ? "expired" : `${sisa}h`})
-                  </span>
-                </div>
-              </div>
-            );
-          })
-        )}
+        <div className="mt-2 h-3 overflow-hidden rounded-full bg-muted">
+          <div className={`h-full ${rasioColor}`} style={{ width: `${rasioKas}%` }} />
+        </div>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Target sehat: ≥ 70% (hijau). Kuning 40–70%, merah &lt; 40%.
+        </p>
       </div>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <ChartCard title="5 Barang Paling Sering Dibeli">
+          {topJumlah.length === 0 ? (
+            <Empty />
+          ) : (
+            <ResponsiveContainer width="100%" height={240}>
+              <BarChart data={topJumlah}>
+                <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
+                <XAxis dataKey="nama" tick={{ fontSize: 11 }} interval={0} angle={-15} textAnchor="end" height={50} />
+                <YAxis tick={{ fontSize: 11 }} />
+                <Tooltip />
+                <Bar dataKey="jumlah" fill="#3B82F6" radius={[6, 6, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          )}
+        </ChartCard>
+
+        <ChartCard title="Profit Tertinggi per Barang">
+          {topProfit.length === 0 ? (
+            <Empty />
+          ) : (
+            <ResponsiveContainer width="100%" height={240}>
+              <PieChart>
+                <Pie
+                  data={topProfit}
+                  dataKey="profit"
+                  nameKey="nama"
+                  innerRadius={45}
+                  outerRadius={90}
+                  paddingAngle={2}
+                >
+                  {topProfit.map((_, i) => (
+                    <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
+                  ))}
+                </Pie>
+                <Tooltip formatter={(v: number) => formatRupiah(v)} />
+              </PieChart>
+            </ResponsiveContainer>
+          )}
+        </ChartCard>
+      </div>
+
+      <ChartCard title="Tren Penjualan 30 Hari Terakhir">
+        <ResponsiveContainer width="100%" height={240}>
+          <LineChart data={tren30}>
+            <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
+            <XAxis dataKey="tgl" tick={{ fontSize: 10 }} interval={3} />
+            <YAxis tick={{ fontSize: 10 }} tickFormatter={(v) => `${v / 1000}k`} />
+            <Tooltip formatter={(v: number) => formatRupiah(v)} />
+            <Line type="monotone" dataKey="total" stroke="#10B981" strokeWidth={2.5} dot={false} />
+          </LineChart>
+        </ResponsiveContainer>
+      </ChartCard>
     </div>
   );
 }
 
-function SummaryCard({
-  icon,
-  label,
-  value,
-  tone,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  value: string;
-  tone: "primary" | "warning" | "danger";
-}) {
-  const toneCls =
+function SumCard({ icon, label, value, tone }: { icon: React.ReactNode; label: string; value: string; tone: "primary" | "warning" | "danger" }) {
+  const cls =
     tone === "primary"
       ? "bg-primary text-primary-foreground"
       : tone === "warning"
         ? "bg-[var(--warning)] text-[var(--warning-foreground)]"
         : "bg-destructive text-destructive-foreground";
   return (
-    <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
-      <div className="flex items-center gap-3">
-        <div className={`flex h-10 w-10 items-center justify-center rounded-lg ${toneCls}`}>
-          {icon}
-        </div>
-        <div className="min-w-0">
-          <div className="text-xs text-muted-foreground">{label}</div>
-          <div className="truncate text-lg font-bold">{value}</div>
-        </div>
-      </div>
+    <div className="rounded-xl border border-border bg-card p-3">
+      <div className={`mb-2 inline-flex h-8 w-8 items-center justify-center rounded-lg ${cls}`}>{icon}</div>
+      <div className="text-[11px] text-muted-foreground">{label}</div>
+      <div className="truncate text-base font-bold">{value}</div>
     </div>
   );
 }
-
-function FilterBtn({
-  active,
-  onClick,
-  children,
-}: {
-  active: boolean;
-  onClick: () => void;
-  children: React.ReactNode;
-}) {
+function MiniCard({ label, value, highlight }: { label: string; value: string; highlight?: "primary" | "danger" }) {
+  const cls =
+    highlight === "primary"
+      ? "text-primary"
+      : highlight === "danger"
+        ? "text-destructive"
+        : "";
   return (
-    <button
-      onClick={onClick}
-      className={`rounded-lg px-4 py-2 text-sm font-medium transition ${
-        active
-          ? "bg-primary text-primary-foreground"
-          : "border border-border bg-card text-foreground hover:bg-accent"
-      }`}
-    >
-      {children}
-    </button>
+    <div className="rounded-xl border border-border bg-card p-4">
+      <div className="text-xs text-muted-foreground">{label}</div>
+      <div className={`mt-1 text-lg font-bold ${cls}`}>{value}</div>
+    </div>
   );
+}
+function ChartCard({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="rounded-xl border border-border bg-card p-4">
+      <h3 className="mb-3 text-sm font-semibold">{title}</h3>
+      {children}
+    </div>
+  );
+}
+function Empty() {
+  return <div className="py-12 text-center text-sm text-muted-foreground">Belum ada data transaksi.</div>;
 }
