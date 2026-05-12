@@ -10,12 +10,18 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as StokRouteImport } from './routes/stok'
+import { Route as PiutangRouteImport } from './routes/piutang'
 import { Route as KasirRouteImport } from './routes/kasir'
 import { Route as IndexRouteImport } from './routes/index'
 
 const StokRoute = StokRouteImport.update({
   id: '/stok',
   path: '/stok',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PiutangRoute = PiutangRouteImport.update({
+  id: '/piutang',
+  path: '/piutang',
   getParentRoute: () => rootRouteImport,
 } as any)
 const KasirRoute = KasirRouteImport.update({
@@ -32,30 +38,34 @@ const IndexRoute = IndexRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/kasir': typeof KasirRoute
+  '/piutang': typeof PiutangRoute
   '/stok': typeof StokRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/kasir': typeof KasirRoute
+  '/piutang': typeof PiutangRoute
   '/stok': typeof StokRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/kasir': typeof KasirRoute
+  '/piutang': typeof PiutangRoute
   '/stok': typeof StokRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/kasir' | '/stok'
+  fullPaths: '/' | '/kasir' | '/piutang' | '/stok'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/kasir' | '/stok'
-  id: '__root__' | '/' | '/kasir' | '/stok'
+  to: '/' | '/kasir' | '/piutang' | '/stok'
+  id: '__root__' | '/' | '/kasir' | '/piutang' | '/stok'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   KasirRoute: typeof KasirRoute
+  PiutangRoute: typeof PiutangRoute
   StokRoute: typeof StokRoute
 }
 
@@ -66,6 +76,13 @@ declare module '@tanstack/react-router' {
       path: '/stok'
       fullPath: '/stok'
       preLoaderRoute: typeof StokRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/piutang': {
+      id: '/piutang'
+      path: '/piutang'
+      fullPath: '/piutang'
+      preLoaderRoute: typeof PiutangRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/kasir': {
@@ -88,6 +105,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   KasirRoute: KasirRoute,
+  PiutangRoute: PiutangRoute,
   StokRoute: StokRoute,
 }
 export const routeTree = rootRouteImport
