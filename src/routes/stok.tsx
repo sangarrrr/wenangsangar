@@ -11,7 +11,8 @@ import {
   type Barang,
 } from "@/lib/storage";
 import { toast } from "sonner";
-import { Pencil, Trash2, Plus, X, AlertTriangle, Clock } from "lucide-react";
+import { Pencil, Trash2, Plus, X, AlertTriangle, Clock, Upload, ImageOff, Loader2, Package } from "lucide-react";
+import { uploadGambarKeCloudinary, CLOUDINARY_CONFIGURED } from "@/lib/cloudinary";
 
 export const Route = createFileRoute("/stok")({
   head: () => ({ meta: [{ title: "Stok — Toko Sembako" }] }),
@@ -26,6 +27,7 @@ type FormState = {
   stokAwal: string;
   stok: string;
   expired: string;
+  imageUrl: string;
 };
 const empty: FormState = {
   nama: "",
@@ -35,6 +37,7 @@ const empty: FormState = {
   stokAwal: "",
   stok: "",
   expired: "",
+  imageUrl: "",
 };
 
 function StokPage() {
@@ -43,6 +46,7 @@ function StokPage() {
   const [editId, setEditId] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
+  const [uploading, setUploading] = useState(false);
 
   useEffect(() => {
     setItems(getBarang());
@@ -78,8 +82,28 @@ function StokPage() {
       stokAwal: String(b.stokAwal),
       stok: String(b.stok),
       expired: b.expired,
+      imageUrl: b.imageUrl || "",
     });
     setOpen(true);
+  }
+  async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    if (!CLOUDINARY_CONFIGURED) {
+      toast.error("Cloudinary belum dikonfigurasi. Edit src/lib/cloudinary.ts");
+      return;
+    }
+    setUploading(true);
+    try {
+      const url = await uploadGambarKeCloudinary(file);
+      setForm((f) => ({ ...f, imageUrl: url }));
+      toast.success("Gambar berhasil diunggah.");
+    } catch (err: any) {
+      toast.error(err.message || "Upload gagal");
+    } finally {
+      setUploading(false);
+    }
   }
   function handleHapus(id: string) {
     if (!confirm("Hapus barang ini?")) return;
@@ -109,7 +133,7 @@ function StokPage() {
         persist(
           items.map((b) =>
             b.id === editId
-              ? { ...b, nama, kategori, hargaBeli, marginPersen: margin, hargaJual, stokAwal, stok, expired }
+              ? { ...b, nama, kategori, hargaBeli, marginPersen: margin, hargaJual, stokAwal, stok, expired, imageUrl: form.imageUrl || undefined }
               : b,
           ),
         );
@@ -125,6 +149,7 @@ function StokPage() {
           stokAwal,
           stok,
           expired,
+          imageUrl: form.imageUrl || undefined,
         };
         persist([baru, ...items]);
         toast.success("Barang ditambahkan.");
