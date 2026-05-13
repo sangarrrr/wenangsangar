@@ -24,6 +24,9 @@ export type Transaksi = {
   profit: number;
   metode: "Cash" | "Piutang";
   customerId?: string | null;
+  jumlahRetur?: number;
+  statusRetur?: "Lunas" | "Retur Sebagian" | "Retur Full";
+  batchId?: string;
 };
 
 export type Piutang = {
@@ -50,10 +53,22 @@ export type Pengeluaran = {
   tanggal: string;
 };
 
+export type ReturLog = {
+  id: string;
+  transaksiId: string;
+  batchId?: string;
+  produkId: string;
+  namaProduk: string;
+  jumlahRetur: number;
+  refundAmount: number;
+  tanggal: string;
+};
+
 const K_BARANG = "sembako-barang";
 const K_TRX = "sembako-transaksi";
 const K_PIUTANG = "sembako-piutang";
 const K_PENG = "sembako-pengeluaran";
+const K_RETUR = "sembako-retur";
 
 // ===== Generic =====
 function load<T>(k: string): T[] {
@@ -127,6 +142,17 @@ export function getPengeluaran(): Pengeluaran[] {
 }
 export function savePengeluaran(items: Pengeluaran[]) {
   save(K_PENG, items);
+}
+
+// ===== Retur =====
+export function getRetur(): ReturLog[] {
+  return load<ReturLog>(K_RETUR);
+}
+export function saveRetur(items: ReturLog[]) {
+  save(K_RETUR, items);
+}
+export function tambahRetur(r: ReturLog) {
+  saveRetur([r, ...getRetur()]);
 }
 
 // ===== Helpers =====
