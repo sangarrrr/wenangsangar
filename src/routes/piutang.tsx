@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { getPiutang, savePiutang, formatRupiah, hariSampaiExpired, type Piutang } from "@/lib/storage";
 import { toast } from "sonner";
-import { CheckCircle2, AlertCircle } from "lucide-react";
+import { CheckCircle2, AlertCircle, Trash2 } from "lucide-react";
 
 export const Route = createFileRoute("/piutang")({
   head: () => ({ meta: [{ title: "Piutang — Toko Sembako" }] }),
@@ -44,6 +44,16 @@ function PiutangPage() {
       ),
     );
     toast.success("Ditandai lunas.");
+  }
+
+  function hapusPiutang(p: Piutang) {
+    if (p.status !== "Lunas") {
+      toast.error("Hanya piutang lunas yang dapat dihapus.");
+      return;
+    }
+    if (!confirm(`Hapus data piutang ${p.namaPelanggan}?`)) return;
+    persist(items.filter((x) => x.id !== p.id));
+    toast.success("Data piutang dihapus.");
   }
 
   function submitCicilan() {
@@ -161,6 +171,14 @@ function PiutangPage() {
                         <CheckCircle2 className="h-3 w-3" /> Lunas
                       </button>
                     </div>
+                  )}
+                  {p.status === "Lunas" && (
+                    <button
+                      onClick={() => hapusPiutang(p)}
+                      className="inline-flex items-center gap-1 rounded-lg border border-destructive px-3 py-1.5 text-xs font-semibold text-destructive"
+                    >
+                      <Trash2 className="h-3 w-3" /> Hapus
+                    </button>
                   )}
                 </div>
               </div>
