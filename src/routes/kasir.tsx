@@ -309,7 +309,8 @@ function KasirPage() {
                     +
                   </button>
                   <button
-                    onClick={() => ubahJumlah(it.produkId, 0)}
+                    onClick={() => hapusItem(it.produkId)}
+                    title="Hapus item"
                     className="ml-1 rounded-md p-1 text-destructive"
                   >
                     <Trash2 className="h-4 w-4" />
