@@ -5,12 +5,14 @@ import {
   getTransaksi,
   getPiutang,
   getLabaBersih,
+  getRetur,
   formatRupiah,
   hariSampaiExpired,
   persenStok,
   type Barang,
   type Transaksi,
   type Piutang,
+  type ReturLog,
 } from "@/lib/storage";
 import {
   BarChart,
@@ -26,7 +28,7 @@ import {
   Line,
   CartesianGrid,
 } from "recharts";
-import { TrendingUp, AlertTriangle, CalendarClock, Wallet } from "lucide-react";
+import { TrendingUp, AlertTriangle, CalendarClock, Wallet, Undo2 } from "lucide-react";
 
 export const Route = createFileRoute("/")({
   head: () => ({ meta: [{ title: "Dashboard — Toko Sembako" }] }),
@@ -39,12 +41,14 @@ function Dashboard() {
   const [barang, setBarang] = useState<Barang[]>([]);
   const [trx, setTrx] = useState<Transaksi[]>([]);
   const [piutang, setPiutang] = useState<Piutang[]>([]);
+  const [retur, setRetur] = useState<ReturLog[]>([]);
 
   useEffect(() => {
     const refresh = () => {
       setBarang(getBarang());
       setTrx(getTransaksi());
       setPiutang(getPiutang());
+      setRetur(getRetur());
     };
     refresh();
     window.addEventListener("sembako-update", refresh);
@@ -56,6 +60,10 @@ function Dashboard() {
   const totalHariIni = trx
     .filter((t) => new Date(t.tanggal).toDateString() === todayStr)
     .reduce((s, t) => s + t.total, 0);
+
+  const returHariIni = retur
+    .filter((r) => new Date(r.tanggal).toDateString() === todayStr)
+    .reduce((s, r) => s + r.refundAmount, 0);
 
   const stokMenipis = barang.filter((b) => b.stok > 0 && persenStok(b) <= 30).length;
   const hampirExpired = barang.filter((b) => {
@@ -140,6 +148,7 @@ function Dashboard() {
         <SumCard icon={<AlertTriangle className="h-4 w-4" />} label="Stok Menipis" value={`${stokMenipis} item`} tone="warning" />
         <SumCard icon={<CalendarClock className="h-4 w-4" />} label="Hampir Expired" value={`${hampirExpired} item`} tone="danger" />
         <SumCard icon={<Wallet className="h-4 w-4" />} label="Piutang Aktif" value={formatRupiah(piutangBelum)} tone="warning" />
+        <SumCard icon={<Undo2 className="h-4 w-4" />} label="Total Retur Hari Ini" value={formatRupiah(returHariIni)} tone="retur" />
       </div>
 
       <div className="grid gap-3 md:grid-cols-3">
@@ -222,13 +231,15 @@ function Dashboard() {
   );
 }
 
-function SumCard({ icon, label, value, tone }: { icon: React.ReactNode; label: string; value: string; tone: "primary" | "warning" | "danger" }) {
+function SumCard({ icon, label, value, tone }: { icon: React.ReactNode; label: string; value: string; tone: "primary" | "warning" | "danger" | "retur" }) {
   const cls =
     tone === "primary"
       ? "bg-primary text-primary-foreground"
       : tone === "warning"
         ? "bg-[var(--warning)] text-[var(--warning-foreground)]"
-        : "bg-destructive text-destructive-foreground";
+        : tone === "retur"
+          ? "bg-[var(--retur)] text-[var(--retur-foreground)]"
+          : "bg-destructive text-destructive-foreground";
   return (
     <div className="rounded-xl border border-border bg-card p-3">
       <div className={`mb-2 inline-flex h-8 w-8 items-center justify-center rounded-lg ${cls}`}>{icon}</div>
