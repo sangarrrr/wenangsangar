@@ -263,6 +263,52 @@ function StokPage() {
               </button>
             </div>
             <form onSubmit={handleSubmit} className="space-y-3">
+              <Field label="Foto Produk (opsional, maks 2MB)">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-border bg-muted">
+                    {form.imageUrl ? (
+                      <img src={form.imageUrl} alt="preview" className="h-full w-full object-cover" />
+                    ) : (
+                      <ImageOff className="h-6 w-6 text-muted-foreground" />
+                    )}
+                  </div>
+                  <div className="flex flex-1 flex-col gap-2">
+                    <label className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-xs font-medium hover:bg-accent">
+                      {uploading ? (
+                        <>
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" /> Mengunggah...
+                        </>
+                      ) : (
+                        <>
+                          <Upload className="h-3.5 w-3.5" /> {form.imageUrl ? "Ganti Gambar" : "Pilih Gambar"}
+                        </>
+                      )}
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        disabled={uploading}
+                        onChange={handleFile}
+                      />
+                    </label>
+                    {form.imageUrl && (
+                      <button
+                        type="button"
+                        onClick={() => setForm((f) => ({ ...f, imageUrl: "" }))}
+                        className="inline-flex items-center justify-center gap-1 rounded-lg border border-destructive px-3 py-1.5 text-xs font-medium text-destructive hover:bg-destructive/10"
+                      >
+                        <Trash2 className="h-3 w-3" /> Hapus Gambar
+                      </button>
+                    )}
+                    {!CLOUDINARY_CONFIGURED && (
+                      <p className="text-[10px] text-muted-foreground">
+                        Cloudinary belum dikonfigurasi. Edit{" "}
+                        <code>src/lib/cloudinary.ts</code>.
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </Field>
               <Field label="Nama Barang">
                 <input
                   className={inputCls}
