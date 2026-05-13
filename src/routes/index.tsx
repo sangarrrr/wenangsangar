@@ -29,6 +29,7 @@ import {
   CartesianGrid,
 } from "recharts";
 import { TrendingUp, AlertTriangle, CalendarClock, Wallet, Undo2 } from "lucide-react";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/")({
   head: () => ({ meta: [{ title: "Dashboard — Toko Sembako" }] }),
@@ -42,6 +43,10 @@ function Dashboard() {
   const [trx, setTrx] = useState<Transaksi[]>([]);
   const [piutang, setPiutang] = useState<Piutang[]>([]);
   const [retur, setRetur] = useState<ReturLog[]>([]);
+  const [showReset, setShowReset] = useState(false);
+  const [konfirmText, setKonfirmText] = useState("");
+  const [resetting, setResetting] = useState(false);
+  const [lastReset, setLastReset] = useState<string | null>(null);
 
   useEffect(() => {
     const refresh = () => {
@@ -49,11 +54,38 @@ function Dashboard() {
       setTrx(getTransaksi());
       setPiutang(getPiutang());
       setRetur(getRetur());
+      try {
+        setLastReset(localStorage.getItem("sembako-last-reset"));
+      } catch {}
     };
     refresh();
     window.addEventListener("sembako-update", refresh);
     return () => window.removeEventListener("sembako-update", refresh);
   }, []);
+
+  function handleReset() {
+    if (resetting) return;
+    if (konfirmText.trim().toUpperCase() !== "RESET") {
+      toast.error('Ketik "RESET" untuk konfirmasi');
+      return;
+    }
+    setResetting(true);
+    try {
+      localStorage.removeItem("sembako-transaksi");
+      localStorage.removeItem("sembako-retur");
+      const ts = new Date().toISOString();
+      localStorage.setItem("sembako-last-reset", ts);
+      window.dispatchEvent(new CustomEvent("sembako-update", { detail: "reset" }));
+      console.log(`Data penjualan direset oleh user pada ${new Date(ts).toLocaleString("id-ID")}`);
+      toast.success("✅ Data penjualan berhasil direset. Stok & pelanggan tetap aman.");
+      setShowReset(false);
+      setKonfirmText("");
+    } catch (e: any) {
+      toast.error("Gagal mereset: " + e.message);
+    } finally {
+      setTimeout(() => setResetting(false), 1500);
+    }
+  }
 
   const today = new Date();
   const todayStr = today.toDateString();
@@ -217,6 +249,9 @@ function Dashboard() {
       </div>
 
       <ChartCard title="Tren Penjualan 30 Hari Terakhir">
+        {trx.length === 0 ? (
+          <Empty />
+        ) : (
         <ResponsiveContainer width="100%" height={240}>
           <LineChart data={tren30}>
             <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
@@ -226,7 +261,64 @@ function Dashboard() {
             <Line type="monotone" dataKey="total" stroke="#10B981" strokeWidth={2.5} dot={false} />
           </LineChart>
         </ResponsiveContainer>
+        )}
       </ChartCard>
+
+      <div className="flex flex-col items-center gap-2 border-t border-border pt-5">
+        <button
+          onClick={() => setShowReset(true)}
+          className="rounded-lg bg-[oklch(0.88_0.06_25)] px-4 py-2 text-sm font-semibold text-[oklch(0.35_0.15_25)] hover:bg-[oklch(0.84_0.08_25)]"
+        >
+          🗑️ Reset Data Penjualan
+        </button>
+        {lastReset && (
+          <p className="text-xs text-muted-foreground">
+            Terakhir direset: {new Date(lastReset).toLocaleString("id-ID")}
+          </p>
+        )}
+      </div>
+
+      {showReset && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md rounded-xl bg-card p-5 shadow-xl">
+            <h3 className="text-lg font-bold">⚠️ PERINGATAN</h3>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Tindakan ini akan menghapus <strong>SEMUA</strong> riwayat transaksi, retur, dan
+              perhitungan laba bulan ini. Data stok & pelanggan <strong>TETAP AMAN</strong>. Lanjutkan?
+            </p>
+            <div className="mt-4">
+              <label className="block text-xs font-medium text-muted-foreground">
+                Ketik <span className="font-mono font-bold text-destructive">RESET</span> untuk konfirmasi
+              </label>
+              <input
+                value={konfirmText}
+                onChange={(e) => setKonfirmText(e.target.value.slice(0, 10))}
+                maxLength={10}
+                placeholder="RESET"
+                className="mt-1 w-full rounded-md border border-input bg-card px-3 py-2 text-sm font-mono outline-none focus:border-destructive"
+              />
+            </div>
+            <div className="mt-5 flex gap-2">
+              <button
+                onClick={() => {
+                  setShowReset(false);
+                  setKonfirmText("");
+                }}
+                className="flex-1 rounded-lg bg-muted px-4 py-2.5 text-sm font-medium text-muted-foreground hover:bg-muted/80"
+              >
+                Batal
+              </button>
+              <button
+                onClick={handleReset}
+                disabled={resetting || konfirmText.trim().toUpperCase() !== "RESET"}
+                className="flex-1 rounded-lg bg-destructive px-4 py-2.5 text-sm font-bold text-destructive-foreground disabled:opacity-40"
+              >
+                {resetting ? "Mereset..." : "Ya, Reset Sekarang"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
