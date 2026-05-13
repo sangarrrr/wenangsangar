@@ -194,7 +194,14 @@ function StokPage() {
             const sExp = sisaHari < 0 ? "expired" : sisaHari <= 14 ? "danger" : "ok";
             return (
               <div key={b.id} className="rounded-xl border border-border bg-card p-4">
-                <div className="flex flex-wrap items-start justify-between gap-2">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-border bg-muted">
+                    {b.imageUrl ? (
+                      <img src={b.imageUrl} alt={b.nama} className="h-full w-full object-cover" />
+                    ) : (
+                      <Package className="h-6 w-6 text-muted-foreground/60" />
+                    )}
+                  </div>
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
                       <div className="font-semibold">{b.nama}</div>
