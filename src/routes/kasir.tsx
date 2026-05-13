@@ -207,7 +207,6 @@ function KasirPage() {
           <div className="grid max-h-[calc(100vh-260px)] grid-cols-2 gap-3 overflow-y-auto pr-1 sm:grid-cols-3 xl:grid-cols-4">
             {opsi.map((b) => {
               const habis = b.stok <= 0;
-              const foto = (b as any).foto as string | undefined;
               return (
                 <button
                   key={b.id}
@@ -216,8 +215,8 @@ function KasirPage() {
                   className="group flex flex-col overflow-hidden rounded-xl border border-border bg-card text-left shadow-sm transition hover:shadow-md disabled:opacity-60"
                 >
                   <div className="relative flex aspect-square w-full items-center justify-center bg-muted">
-                    {foto ? (
-                      <img src={foto} alt={b.nama} className="h-full w-full object-cover" />
+                    {b.imageUrl ? (
+                      <img src={b.imageUrl} alt={b.nama} className="h-full w-full object-cover" loading="lazy" />
                     ) : (
                       <Package className="h-10 w-10 text-muted-foreground/60" />
                     )}

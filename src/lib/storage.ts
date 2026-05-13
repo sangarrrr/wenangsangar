@@ -9,6 +9,7 @@ export type Barang = {
   marginPersen: number;
   hargaJual: number;
   expired: string; // YYYY-MM-DD
+  imageUrl?: string;
 };
 
 export type Transaksi = {
@@ -94,6 +95,7 @@ function migrasiBarang(b: any): Barang {
     marginPersen: margin,
     hargaJual,
     expired: b.expired ?? "",
+    imageUrl: b.imageUrl || b.foto || undefined,
   };
 }
 export function saveBarang(items: Barang[]) {

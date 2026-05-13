@@ -11,7 +11,8 @@ import {
   type Barang,
 } from "@/lib/storage";
 import { toast } from "sonner";
-import { Pencil, Trash2, Plus, X, AlertTriangle, Clock } from "lucide-react";
+import { Pencil, Trash2, Plus, X, AlertTriangle, Clock, Upload, ImageOff, Loader2, Package } from "lucide-react";
+import { uploadGambarKeCloudinary, CLOUDINARY_CONFIGURED } from "@/lib/cloudinary";
 
 export const Route = createFileRoute("/stok")({
   head: () => ({ meta: [{ title: "Stok — Toko Sembako" }] }),
@@ -26,6 +27,7 @@ type FormState = {
   stokAwal: string;
   stok: string;
   expired: string;
+  imageUrl: string;
 };
 const empty: FormState = {
   nama: "",
@@ -35,6 +37,7 @@ const empty: FormState = {
   stokAwal: "",
   stok: "",
   expired: "",
+  imageUrl: "",
 };
 
 function StokPage() {
@@ -43,6 +46,7 @@ function StokPage() {
   const [editId, setEditId] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
+  const [uploading, setUploading] = useState(false);
 
   useEffect(() => {
     setItems(getBarang());
@@ -78,8 +82,28 @@ function StokPage() {
       stokAwal: String(b.stokAwal),
       stok: String(b.stok),
       expired: b.expired,
+      imageUrl: b.imageUrl || "",
     });
     setOpen(true);
+  }
+  async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    if (!CLOUDINARY_CONFIGURED) {
+      toast.error("Cloudinary belum dikonfigurasi. Edit src/lib/cloudinary.ts");
+      return;
+    }
+    setUploading(true);
+    try {
+      const url = await uploadGambarKeCloudinary(file);
+      setForm((f) => ({ ...f, imageUrl: url }));
+      toast.success("Gambar berhasil diunggah.");
+    } catch (err: any) {
+      toast.error(err.message || "Upload gagal");
+    } finally {
+      setUploading(false);
+    }
   }
   function handleHapus(id: string) {
     if (!confirm("Hapus barang ini?")) return;
@@ -109,7 +133,7 @@ function StokPage() {
         persist(
           items.map((b) =>
             b.id === editId
-              ? { ...b, nama, kategori, hargaBeli, marginPersen: margin, hargaJual, stokAwal, stok, expired }
+              ? { ...b, nama, kategori, hargaBeli, marginPersen: margin, hargaJual, stokAwal, stok, expired, imageUrl: form.imageUrl || undefined }
               : b,
           ),
         );
@@ -125,6 +149,7 @@ function StokPage() {
           stokAwal,
           stok,
           expired,
+          imageUrl: form.imageUrl || undefined,
         };
         persist([baru, ...items]);
         toast.success("Barang ditambahkan.");
@@ -169,7 +194,14 @@ function StokPage() {
             const sExp = sisaHari < 0 ? "expired" : sisaHari <= 14 ? "danger" : "ok";
             return (
               <div key={b.id} className="rounded-xl border border-border bg-card p-4">
-                <div className="flex flex-wrap items-start justify-between gap-2">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-border bg-muted">
+                    {b.imageUrl ? (
+                      <img src={b.imageUrl} alt={b.nama} className="h-full w-full object-cover" />
+                    ) : (
+                      <Package className="h-6 w-6 text-muted-foreground/60" />
+                    )}
+                  </div>
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
                       <div className="font-semibold">{b.nama}</div>
@@ -238,6 +270,52 @@ function StokPage() {
               </button>
             </div>
             <form onSubmit={handleSubmit} className="space-y-3">
+              <Field label="Foto Produk (opsional, maks 2MB)">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-border bg-muted">
+                    {form.imageUrl ? (
+                      <img src={form.imageUrl} alt="preview" className="h-full w-full object-cover" />
+                    ) : (
+                      <ImageOff className="h-6 w-6 text-muted-foreground" />
+                    )}
+                  </div>
+                  <div className="flex flex-1 flex-col gap-2">
+                    <label className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-xs font-medium hover:bg-accent">
+                      {uploading ? (
+                        <>
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" /> Mengunggah...
+                        </>
+                      ) : (
+                        <>
+                          <Upload className="h-3.5 w-3.5" /> {form.imageUrl ? "Ganti Gambar" : "Pilih Gambar"}
+                        </>
+                      )}
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        disabled={uploading}
+                        onChange={handleFile}
+                      />
+                    </label>
+                    {form.imageUrl && (
+                      <button
+                        type="button"
+                        onClick={() => setForm((f) => ({ ...f, imageUrl: "" }))}
+                        className="inline-flex items-center justify-center gap-1 rounded-lg border border-destructive px-3 py-1.5 text-xs font-medium text-destructive hover:bg-destructive/10"
+                      >
+                        <Trash2 className="h-3 w-3" /> Hapus Gambar
+                      </button>
+                    )}
+                    {!CLOUDINARY_CONFIGURED && (
+                      <p className="text-[10px] text-muted-foreground">
+                        Cloudinary belum dikonfigurasi. Edit{" "}
+                        <code>src/lib/cloudinary.ts</code>.
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </Field>
               <Field label="Nama Barang">
                 <input
                   className={inputCls}
