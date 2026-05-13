@@ -5,14 +5,18 @@ import {
   saveBarang,
   getPiutang,
   savePiutang,
+  getTransaksi,
+  saveTransaksi,
   tambahTransaksi,
+  tambahRetur,
   formatRupiah,
   type Barang,
   type Transaksi,
   type Piutang,
+  type ReturLog,
 } from "@/lib/storage";
 import { toast } from "sonner";
-import { Trash2, Plus, Printer, Receipt, Package, PackageOpen } from "lucide-react";
+import { Trash2, Plus, Printer, Receipt, Package, PackageOpen, History, Undo2, X } from "lucide-react";
 
 export const Route = createFileRoute("/kasir")({
   head: () => ({ meta: [{ title: "Kasir — Toko Sembako" }] }),
@@ -32,10 +36,19 @@ function KasirPage() {
   const [struk, setStruk] = useState<{ trx: Transaksi[]; total: number; metode: string; nama?: string } | null>(
     null,
   );
+  const [tab, setTab] = useState<"kasir" | "riwayat">("kasir");
+  const [trxAll, setTrxAll] = useState<Transaksi[]>([]);
+  const [returBatchId, setReturBatchId] = useState<string | null>(null);
 
   useEffect(() => {
     setBarang(getBarang());
+    setTrxAll(getTransaksi());
   }, []);
+
+  function refreshAll() {
+    setBarang(getBarang());
+    setTrxAll(getTransaksi());
+  }
 
   const opsi = useMemo(
     () => barang.filter((b) => b.nama.toLowerCase().includes(q.toLowerCase())),
@@ -70,9 +83,19 @@ function KasirPage() {
   function ubahJumlah(id: string, j: number) {
     const b = barang.find((x) => x.id === id);
     if (!b) return;
-    if (j <= 0) return setItems(items.filter((i) => i.produkId !== id));
+    if (j <= 0) {
+      setItems(items.filter((i) => i.produkId !== id));
+      toast.success("Item dihapus, total diperbarui");
+      return;
+    }
     if (j > b.stok) return toast.error(`Stok ${b.nama} hanya ${b.stok}`);
     setItems(items.map((i) => (i.produkId === id ? { ...i, jumlah: j } : i)));
+  }
+
+  function hapusItem(id: string) {
+    if (!confirm("Yakin ingin menghapus item ini dari keranjang?")) return;
+    setItems(items.filter((i) => i.produkId !== id));
+    toast.success("Item dihapus, total diperbarui");
   }
 
   function proses() {
@@ -83,6 +106,7 @@ function KasirPage() {
         if (!jatuhTempo) throw new Error("Tanggal jatuh tempo wajib diisi.");
       }
       const now = new Date().toISOString();
+      const batchId = crypto.randomUUID();
       const trxList: Transaksi[] = [];
       const newBarang = barang.map((b) => ({ ...b }));
       for (const it of items) {
@@ -90,6 +114,7 @@ function KasirPage() {
         const t: Transaksi = {
           id: crypto.randomUUID(),
           tanggal: now,
+          batchId,
           produkId: b.id,
           namaProduk: b.nama,
           jumlah: it.jumlah,
@@ -98,6 +123,8 @@ function KasirPage() {
           total: b.hargaJual * it.jumlah,
           profit: (b.hargaJual - b.hargaBeli) * it.jumlah,
           metode,
+          jumlahRetur: 0,
+          statusRetur: "Lunas",
         };
         b.stok -= it.jumlah;
         trxList.push(t);
@@ -105,6 +132,7 @@ function KasirPage() {
       }
       setBarang(newBarang);
       saveBarang(newBarang);
+      setTrxAll(getTransaksi());
 
       if (metode === "Piutang") {
         const p: Piutang = {
