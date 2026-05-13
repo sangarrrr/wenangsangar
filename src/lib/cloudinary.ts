@@ -10,8 +10,8 @@
 //    Salin nama preset (misal: "ml_default" atau preset baru)
 // 5. Tempel kedua nilai di bawah ini.
 // ============================================================
-export const CLOUDINARY_CLOUD_NAME = "MASUKKAN_CLOUD_NAME_DISINI";
-export const CLOUDINARY_UPLOAD_PRESET = "MASUKKAN_PRESET_DISINI";
+export const CLOUDINARY_CLOUD_NAME = "drzcrjmbb";
+export const CLOUDINARY_UPLOAD_PRESET = "toko_sembako_preset";
 
 export const CLOUDINARY_CONFIGURED =
   CLOUDINARY_CLOUD_NAME !== "MASUKKAN_CLOUD_NAME_DISINI" &&
