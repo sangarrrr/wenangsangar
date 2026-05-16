@@ -99,6 +99,7 @@ function Dashboard() {
 
   const stokMenipis = barang.filter((b) => b.stok > 0 && persenStok(b) <= 30).length;
   const hampirExpired = barang.filter((b) => {
+    if (!b.expired) return false;
     const d = hariSampaiExpired(b.expired);
     return d >= 0 && d <= 14;
   }).length;
