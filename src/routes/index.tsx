@@ -6,6 +6,8 @@ import {
   getPiutang,
   getLabaBersih,
   getRetur,
+  saveTransaksi,
+  saveRetur,
   formatRupiah,
   hariSampaiExpired,
   persenStok,
@@ -71,8 +73,8 @@ function Dashboard() {
     }
     setResetting(true);
     try {
-      localStorage.removeItem("sembako-transaksi");
-      localStorage.removeItem("sembako-retur");
+      saveTransaksi([]);
+      saveRetur([]);
       const ts = new Date().toISOString();
       localStorage.setItem("sembako-last-reset", ts);
       window.dispatchEvent(new CustomEvent("sembako-update", { detail: "reset" }));

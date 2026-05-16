@@ -6,7 +6,12 @@ import {
   useRouter,
   HeadContent,
   Scripts,
+  useLocation,
+  useNavigate,
 } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { hydrateAll, clearCache } from "@/lib/storage";
 
 import appCss from "../styles.css?url";
 import { Layout } from "../components/Layout";
@@ -112,11 +117,59 @@ function RootShell({ children }: { children: React.ReactNode }) {
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
-
   return (
     <QueryClientProvider client={queryClient}>
-      <Layout />
+      <AuthGate />
       <Toaster position="top-center" richColors />
     </QueryClientProvider>
   );
+}
+
+function AuthGate() {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const isLogin = location.pathname === "/login";
+  const [status, setStatus] = useState<"checking" | "authed" | "anon">("checking");
+  const [hydrated, setHydrated] = useState(false);
+
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, session) => {
+      if (session?.user) {
+        setStatus("authed");
+        hydrateAll().then(() => setHydrated(true)).catch((e) => {
+          console.error("[hydrate] gagal:", e);
+          setHydrated(true);
+        });
+      } else {
+        clearCache();
+        setHydrated(false);
+        setStatus("anon");
+      }
+    });
+    supabase.auth.getSession().then(({ data }) => {
+      if (data.session) {
+        setStatus("authed");
+        hydrateAll().then(() => setHydrated(true)).catch(() => setHydrated(true));
+      } else {
+        setStatus("anon");
+      }
+    });
+    return () => subscription.unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    if (status === "anon" && !isLogin) navigate({ to: "/login" });
+    if (status === "authed" && isLogin) navigate({ to: "/" });
+  }, [status, isLogin, navigate]);
+
+  if (isLogin) return <Outlet />;
+  if (status === "checking" || (status === "authed" && !hydrated)) {
+    return (
+      <div className="flex min-h-screen items-center justify-center text-sm text-muted-foreground">
+        Memuat data toko…
+      </div>
+    );
+  }
+  if (status === "anon") return null;
+  return <Layout />;
 }
