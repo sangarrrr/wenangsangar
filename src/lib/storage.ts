@@ -1,20 +1,22 @@
-// ===== Types =====
+import { supabase } from "@/integrations/supabase/client";
+
+// ===== Types (kept compatible with existing UI) =====
 export type Barang = {
   id: string;
   nama: string;
   kategori: string;
   stokAwal: number;
-  stok: number; // stok sekarang
+  stok: number;
   hargaBeli: number;
   marginPersen: number;
   hargaJual: number;
-  expired: string | null; // YYYY-MM-DD, null = non-perishable
+  expired: string | null;
   imageUrl?: string;
 };
 
 export type Transaksi = {
   id: string;
-  tanggal: string; // ISO
+  tanggal: string;
   produkId: string;
   namaProduk: string;
   jumlah: number;
@@ -37,7 +39,7 @@ export type Piutang = {
   totalHutang: number;
   sisaHutang: number;
   tanggalTransaksi: string;
-  jatuhTempo: string; // YYYY-MM-DD
+  jatuhTempo: string;
   status: "Belum Lunas" | "Cicilan" | "Lunas";
   cicilan: { tanggal: string; jumlah: number }[];
   catatan?: string;
@@ -47,7 +49,7 @@ export type Pengeluaran = {
   id: string;
   kategori: string;
   jumlah: number;
-  bulan: number; // 1-12
+  bulan: number;
   tahun: number;
   keterangan?: string;
   tanggal: string;
@@ -64,98 +66,322 @@ export type ReturLog = {
   tanggal: string;
 };
 
-const K_BARANG = "sembako-barang";
-const K_TRX = "sembako-transaksi";
-const K_PIUTANG = "sembako-piutang";
-const K_PENG = "sembako-pengeluaran";
-const K_RETUR = "sembako-retur";
+// ===== In-memory cache (per session, hydrated from Supabase) =====
+let _barang: Barang[] = [];
+let _trx: Transaksi[] = [];
+let _piutang: Piutang[] = [];
+let _peng: Pengeluaran[] = [];
+let _retur: ReturLog[] = [];
+let _hydrated = false;
+let _userId: string | null = null;
 
-// ===== Generic =====
-function load<T>(k: string): T[] {
-  if (typeof window === "undefined") return [];
-  try {
-    return JSON.parse(localStorage.getItem(k) || "[]");
-  } catch {
-    return [];
-  }
-}
-function save<T>(k: string, v: T[]) {
-  localStorage.setItem(k, JSON.stringify(v));
+function emit(k = "all") {
   try {
     window.dispatchEvent(new CustomEvent("sembako-update", { detail: k }));
   } catch {}
 }
 
-// ===== Barang (with migration) =====
-export function getBarang(): Barang[] {
-  const raw = load<any>(K_BARANG);
-  return raw.map((b) => migrasiBarang(b));
+export function isHydrated() {
+  return _hydrated;
 }
-function migrasiBarang(b: any): Barang {
-  const hargaBeli = Number(b.hargaBeli ?? 0);
-  const hargaJual = Number(b.hargaJual ?? hargaBeli);
-  const margin =
-    b.marginPersen != null
-      ? Number(b.marginPersen)
-      : hargaBeli > 0
-        ? Math.round(((hargaJual - hargaBeli) / hargaBeli) * 100)
-        : 0;
+
+export function clearCache() {
+  _barang = [];
+  _trx = [];
+  _piutang = [];
+  _peng = [];
+  _retur = [];
+  _hydrated = false;
+  _userId = null;
+  emit("clear");
+}
+
+async function getUserId(): Promise<string> {
+  if (_userId) return _userId;
+  const { data } = await supabase.auth.getUser();
+  if (!data.user) throw new Error("Belum login");
+  _userId = data.user.id;
+  return _userId;
+}
+
+// ===== Mappers =====
+function rowToBarang(r: any): Barang {
   return {
-    id: b.id,
-    nama: b.nama ?? "",
-    kategori: b.kategori ?? "Lainnya",
-    stokAwal: Number(b.stokAwal ?? b.stok ?? 0),
-    stok: Number(b.stok ?? 0),
-    hargaBeli,
-    marginPersen: margin,
-    hargaJual,
-    expired: b.expired ? b.expired : null,
-    imageUrl: b.imageUrl || b.foto || undefined,
+    id: r.id,
+    nama: r.nama_barang,
+    kategori: r.kategori,
+    stokAwal: Number(r.stok_awal),
+    stok: Number(r.stok),
+    hargaBeli: Number(r.harga_beli),
+    marginPersen: Number(r.margin_persen),
+    hargaJual: Number(r.harga_jual),
+    expired: r.expired_date,
+    imageUrl: r.image_url ?? undefined,
   };
 }
+function barangToRow(b: Barang, userId: string) {
+  return {
+    id: b.id,
+    user_id: userId,
+    nama_barang: b.nama,
+    kategori: b.kategori,
+    stok_awal: b.stokAwal,
+    stok: b.stok,
+    harga_beli: b.hargaBeli,
+    margin_persen: b.marginPersen,
+    harga_jual: b.hargaJual,
+    expired_date: b.expired,
+    image_url: b.imageUrl ?? null,
+  };
+}
+
+function rowToTrx(r: any): Transaksi {
+  return {
+    id: r.id,
+    tanggal: r.created_at,
+    produkId: r.product_id ?? "",
+    namaProduk: r.nama_produk,
+    jumlah: r.quantity,
+    hargaJualSatuan: Number(r.harga_jual_satuan),
+    hargaBeliSatuan: Number(r.harga_beli_satuan),
+    total: Number(r.total_harga),
+    profit: Number(r.profit),
+    metode: r.metode_pembayaran,
+    customerId: r.customer_id ?? null,
+    jumlahRetur: r.jumlah_retur ?? 0,
+    statusRetur: (r.status_retur as Transaksi["statusRetur"]) ?? "Lunas",
+    batchId: r.batch_id ?? undefined,
+  };
+}
+function trxToRow(t: Transaksi, userId: string) {
+  return {
+    id: t.id,
+    user_id: userId,
+    product_id: t.produkId || null,
+    nama_produk: t.namaProduk,
+    quantity: t.jumlah,
+    harga_jual_satuan: t.hargaJualSatuan,
+    harga_beli_satuan: t.hargaBeliSatuan,
+    total_harga: t.total,
+    profit: t.profit,
+    metode_pembayaran: t.metode,
+    customer_id: t.customerId ?? null,
+    batch_id: t.batchId ?? null,
+    jumlah_retur: t.jumlahRetur ?? 0,
+    status_retur: t.statusRetur ?? "Lunas",
+    created_at: t.tanggal,
+  };
+}
+
+function rowToPiutang(r: any): Piutang {
+  return {
+    id: r.id,
+    transaksiId: r.transaction_id ?? "",
+    namaPelanggan: r.nama_pelanggan,
+    telepon: r.telepon ?? "",
+    totalHutang: Number(r.total_hutang),
+    sisaHutang: Number(r.sisa_hutang),
+    tanggalTransaksi: r.created_at,
+    jatuhTempo: r.jatuh_tempo,
+    status: r.status,
+    cicilan: Array.isArray(r.cicilan) ? r.cicilan : [],
+    catatan: r.catatan ?? undefined,
+  };
+}
+function piutangToRow(p: Piutang, userId: string) {
+  return {
+    id: p.id,
+    user_id: userId,
+    transaction_id: null, // ID list dipisah koma -> tidak fit FK; simpan di catatan
+    nama_pelanggan: p.namaPelanggan,
+    telepon: p.telepon || null,
+    total_hutang: p.totalHutang,
+    sisa_hutang: p.sisaHutang,
+    jatuh_tempo: p.jatuhTempo,
+    status: p.status,
+    cicilan: p.cicilan,
+    catatan: p.catatan ?? null,
+    created_at: p.tanggalTransaksi,
+  };
+}
+
+function rowToPeng(r: any): Pengeluaran {
+  return {
+    id: r.id,
+    kategori: r.kategori,
+    jumlah: Number(r.jumlah),
+    bulan: r.bulan,
+    tahun: r.tahun,
+    keterangan: r.keterangan ?? undefined,
+    tanggal: r.tanggal,
+  };
+}
+function pengToRow(p: Pengeluaran, userId: string) {
+  return {
+    id: p.id,
+    user_id: userId,
+    kategori: p.kategori,
+    jumlah: p.jumlah,
+    bulan: p.bulan,
+    tahun: p.tahun,
+    keterangan: p.keterangan ?? null,
+    tanggal: p.tanggal,
+  };
+}
+
+function rowToRetur(r: any): ReturLog {
+  return {
+    id: r.id,
+    transaksiId: r.transaction_id ?? "",
+    batchId: r.batch_id ?? undefined,
+    produkId: r.product_id ?? "",
+    namaProduk: r.nama_produk,
+    jumlahRetur: r.jumlah_retur,
+    refundAmount: Number(r.refund_amount),
+    tanggal: r.created_at,
+  };
+}
+function returToRow(r: ReturLog, userId: string) {
+  return {
+    id: r.id,
+    user_id: userId,
+    transaction_id: r.transaksiId || null,
+    batch_id: r.batchId ?? null,
+    product_id: r.produkId || null,
+    nama_produk: r.namaProduk,
+    jumlah_retur: r.jumlahRetur,
+    refund_amount: r.refundAmount,
+    created_at: r.tanggal,
+  };
+}
+
+// ===== Hydration =====
+export async function hydrateAll(): Promise<void> {
+  await getUserId();
+  const [pr, tr, rec, exp, ret] = await Promise.all([
+    supabase.from("products").select("*").order("created_at", { ascending: false }),
+    supabase.from("transactions").select("*").order("created_at", { ascending: false }),
+    supabase.from("receivables").select("*").order("created_at", { ascending: false }),
+    supabase.from("expenses").select("*").order("tanggal", { ascending: false }),
+    supabase.from("returns").select("*").order("created_at", { ascending: false }),
+  ]);
+  if (pr.error) throw pr.error;
+  if (tr.error) throw tr.error;
+  if (rec.error) throw rec.error;
+  if (exp.error) throw exp.error;
+  if (ret.error) throw ret.error;
+  _barang = (pr.data ?? []).map(rowToBarang);
+  _trx = (tr.data ?? []).map(rowToTrx);
+  _piutang = (rec.data ?? []).map(rowToPiutang);
+  _peng = (exp.data ?? []).map(rowToPeng);
+  _retur = (ret.data ?? []).map(rowToRetur);
+  _hydrated = true;
+  emit("hydrate");
+}
+
+// ===== Generic diff sync =====
+async function syncTable<T extends { id: string }>(
+  table: string,
+  prev: T[],
+  next: T[],
+  toRow: (item: T, userId: string) => any,
+) {
+  const userId = await getUserId();
+  const prevIds = new Set(prev.map((x) => x.id));
+  const nextIds = new Set(next.map((x) => x.id));
+  const toDelete = [...prevIds].filter((id) => !nextIds.has(id));
+  // Upsert semua next (insert baru + update existing)
+  if (next.length > 0) {
+    const rows = next.map((n) => toRow(n, userId));
+    const { error } = await supabase.from(table).upsert(rows);
+    if (error) throw error;
+  }
+  if (toDelete.length > 0) {
+    const { error } = await supabase.from(table).delete().in("id", toDelete);
+    if (error) throw error;
+  }
+}
+
+// ===== Barang =====
+export function getBarang(): Barang[] {
+  return _barang;
+}
 export function saveBarang(items: Barang[]) {
-  save(K_BARANG, items);
+  const prev = _barang;
+  _barang = items;
+  emit("barang");
+  syncTable("products", prev, items, barangToRow).catch((e) => {
+    console.error("[saveBarang] gagal:", e);
+    try {
+      // toast lazy
+      import("sonner").then(({ toast }) => toast.error("Gagal simpan barang: " + e.message));
+    } catch {}
+  });
 }
 
 // ===== Transaksi =====
 export function getTransaksi(): Transaksi[] {
-  return load<Transaksi>(K_TRX);
+  return _trx;
 }
 export function saveTransaksi(items: Transaksi[]) {
-  save(K_TRX, items);
+  const prev = _trx;
+  _trx = items;
+  emit("trx");
+  syncTable("transactions", prev, items, trxToRow).catch((e) => {
+    console.error("[saveTransaksi] gagal:", e);
+    import("sonner").then(({ toast }) => toast.error("Gagal simpan transaksi: " + e.message));
+  });
 }
 export function tambahTransaksi(t: Transaksi) {
-  saveTransaksi([t, ...getTransaksi()]);
+  saveTransaksi([t, ..._trx]);
 }
 
 // ===== Piutang =====
 export function getPiutang(): Piutang[] {
-  return load<Piutang>(K_PIUTANG);
+  return _piutang;
 }
 export function savePiutang(items: Piutang[]) {
-  save(K_PIUTANG, items);
+  const prev = _piutang;
+  _piutang = items;
+  emit("piutang");
+  syncTable("receivables", prev, items, piutangToRow).catch((e) => {
+    console.error("[savePiutang] gagal:", e);
+    import("sonner").then(({ toast }) => toast.error("Gagal simpan piutang: " + e.message));
+  });
 }
 
 // ===== Pengeluaran =====
 export function getPengeluaran(): Pengeluaran[] {
-  return load<Pengeluaran>(K_PENG);
+  return _peng;
 }
 export function savePengeluaran(items: Pengeluaran[]) {
-  save(K_PENG, items);
+  const prev = _peng;
+  _peng = items;
+  emit("peng");
+  syncTable("expenses", prev, items, pengToRow).catch((e) => {
+    console.error("[savePengeluaran] gagal:", e);
+    import("sonner").then(({ toast }) => toast.error("Gagal simpan pengeluaran: " + e.message));
+  });
 }
 
 // ===== Retur =====
 export function getRetur(): ReturLog[] {
-  return load<ReturLog>(K_RETUR);
+  return _retur;
 }
 export function saveRetur(items: ReturLog[]) {
-  save(K_RETUR, items);
+  const prev = _retur;
+  _retur = items;
+  emit("retur");
+  syncTable("returns", prev, items, returToRow).catch((e) => {
+    console.error("[saveRetur] gagal:", e);
+    import("sonner").then(({ toast }) => toast.error("Gagal simpan retur: " + e.message));
+  });
 }
 export function tambahRetur(r: ReturLog) {
-  saveRetur([r, ...getRetur()]);
+  saveRetur([r, ..._retur]);
 }
 
-// ===== Helpers =====
+// ===== Helpers (pure) =====
 export function formatRupiah(n: number) {
   return "Rp " + Math.round(n || 0).toLocaleString("id-ID");
 }
@@ -188,11 +414,11 @@ export function statusExpired(b: Barang): "ok" | "warning" | "danger" {
 }
 
 export function getLabaBersih(bulan: number, tahun: number) {
-  const trx = getTransaksi().filter((t) => {
+  const trx = _trx.filter((t) => {
     const d = new Date(t.tanggal);
     return d.getMonth() + 1 === bulan && d.getFullYear() === tahun && t.metode === "Cash";
   });
-  const peng = getPengeluaran().filter((p) => p.bulan === bulan && p.tahun === tahun);
+  const peng = _peng.filter((p) => p.bulan === bulan && p.tahun === tahun);
   const pemasukan = trx.reduce((s, t) => s + t.total, 0);
   const profit = trx.reduce((s, t) => s + t.profit, 0);
   const pengeluaran = peng.reduce((s, p) => s + p.jumlah, 0);
@@ -201,33 +427,15 @@ export function getLabaBersih(bulan: number, tahun: number) {
 
 export function exportSemuaData() {
   return {
-    barang: getBarang(),
-    transaksi: getTransaksi(),
-    piutang: getPiutang(),
-    pengeluaran: getPengeluaran(),
+    barang: _barang,
+    transaksi: _trx,
+    piutang: _piutang,
+    pengeluaran: _peng,
     exportedAt: new Date().toISOString(),
   };
 }
 
-// ===== Seed dummy data =====
+// Deprecated — multi-user tidak butuh seed dummy.
 export function seedDummyJikaKosong() {
-  if (typeof window === "undefined") return;
-  if (getBarang().length > 0) return;
-  const today = new Date();
-  const tgl = (offset: number) => {
-    const d = new Date(today);
-    d.setDate(d.getDate() + offset);
-    return d.toISOString().slice(0, 10);
-  };
-  const dummy: Barang[] = [
-    { id: crypto.randomUUID(), nama: "Beras Premium 5kg", kategori: "Sembako", stokAwal: 20, stok: 18, hargaBeli: 60000, marginPersen: 15, hargaJual: 69000, expired: tgl(180) },
-    { id: crypto.randomUUID(), nama: "Minyak Goreng 1L", kategori: "Sembako", stokAwal: 30, stok: 8, hargaBeli: 14000, marginPersen: 20, hargaJual: 16800, expired: tgl(120) },
-    { id: crypto.randomUUID(), nama: "Gula Pasir 1kg", kategori: "Sembako", stokAwal: 25, stok: 6, hargaBeli: 13000, marginPersen: 18, hargaJual: 15340, expired: tgl(200) },
-    { id: crypto.randomUUID(), nama: "Telur 1kg", kategori: "Protein", stokAwal: 15, stok: 4, hargaBeli: 26000, marginPersen: 12, hargaJual: 29120, expired: tgl(10) },
-    { id: crypto.randomUUID(), nama: "Susu UHT 1L", kategori: "Minuman", stokAwal: 24, stok: 22, hargaBeli: 16000, marginPersen: 18, hargaJual: 18880, expired: tgl(7) },
-    { id: crypto.randomUUID(), nama: "Roti Tawar", kategori: "Roti", stokAwal: 12, stok: 3, hargaBeli: 12000, marginPersen: 25, hargaJual: 15000, expired: tgl(5) },
-    { id: crypto.randomUUID(), nama: "Mie Instan", kategori: "Sembako", stokAwal: 100, stok: 75, hargaBeli: 2800, marginPersen: 25, hargaJual: 3500, expired: tgl(300) },
-    { id: crypto.randomUUID(), nama: "Kopi Sachet", kategori: "Minuman", stokAwal: 50, stok: 40, hargaBeli: 1500, marginPersen: 33, hargaJual: 2000, expired: tgl(250) },
-  ];
-  saveBarang(dummy);
+  /* no-op */
 }
