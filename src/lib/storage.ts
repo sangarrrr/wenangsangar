@@ -293,11 +293,11 @@ async function syncTable<T extends { id: string }>(
   // Upsert semua next (insert baru + update existing)
   if (next.length > 0) {
     const rows = next.map((n) => toRow(n, userId));
-    const { error } = await supabase.from(table).upsert(rows);
+    const { error } = await (supabase.from(table as any) as any).upsert(rows);
     if (error) throw error;
   }
   if (toDelete.length > 0) {
-    const { error } = await supabase.from(table).delete().in("id", toDelete);
+    const { error } = await (supabase.from(table as any) as any).delete().in("id", toDelete);
     if (error) throw error;
   }
 }
