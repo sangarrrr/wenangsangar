@@ -1,7 +1,8 @@
-import { Link, Outlet, useLocation } from "@tanstack/react-router";
-import { LayoutDashboard, Package, ShoppingCart, Wallet, BarChart3 } from "lucide-react";
-import { useEffect } from "react";
-import { seedDummyJikaKosong } from "@/lib/storage";
+import { Link, Outlet, useLocation, useNavigate } from "@tanstack/react-router";
+import { LayoutDashboard, Package, ShoppingCart, Wallet, BarChart3, LogOut } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { clearCache } from "@/lib/storage";
+import { toast } from "sonner";
 
 const nav = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard },
@@ -13,14 +14,19 @@ const nav = [
 
 export function Layout() {
   const { pathname } = useLocation();
-  useEffect(() => {
-    seedDummyJikaKosong();
-  }, []);
+  const navigate = useNavigate();
+  async function logout() {
+    await supabase.auth.signOut();
+    clearCache();
+    toast.success("Berhasil keluar");
+    navigate({ to: "/login" });
+  }
   return (
     <div className="min-h-screen bg-background pb-20 md:pb-0">
       <header className="sticky top-0 z-10 border-b border-border bg-card">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
           <h1 className="text-base font-bold text-primary md:text-lg">🛒 Toko Sembako</h1>
+          <div className="flex items-center gap-2">
           <nav className="hidden gap-1 md:flex">
             {nav.map((n) => {
               const active = pathname === n.to;
@@ -41,6 +47,14 @@ export function Layout() {
               );
             })}
           </nav>
+          <button
+            onClick={logout}
+            title="Keluar"
+            className="inline-flex items-center gap-1 rounded-lg border border-border px-2.5 py-1.5 text-xs hover:bg-accent"
+          >
+            <LogOut className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Keluar</span>
+          </button>
+          </div>
         </div>
       </header>
       <main className="mx-auto max-w-6xl px-4 py-5">
