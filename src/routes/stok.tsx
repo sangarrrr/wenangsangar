@@ -81,7 +81,7 @@ function StokPage() {
       marginPersen: String(b.marginPersen),
       stokAwal: String(b.stokAwal),
       stok: String(b.stok),
-      expired: b.expired,
+      expired: b.expired ?? "",
       imageUrl: b.imageUrl || "",
     });
     setOpen(true);
@@ -119,15 +119,13 @@ function StokPage() {
       const margin = Number(form.marginPersen);
       const stokAwal = Number(form.stokAwal);
       const stok = form.stok === "" ? stokAwal : Number(form.stok);
-      const expired = form.expired;
+      const expired = form.expired ? form.expired : null;
 
       if (!nama) throw new Error("Nama barang wajib diisi.");
       if (!Number.isFinite(hargaBeli) || hargaBeli < 0) throw new Error("Harga beli ≥ 0.");
       if (!Number.isFinite(margin) || margin < 0) throw new Error("Margin ≥ 0.");
       if (!Number.isInteger(stokAwal) || stokAwal < 0) throw new Error("Stok awal ≥ 0.");
       if (!Number.isInteger(stok) || stok < 0) throw new Error("Stok sekarang ≥ 0.");
-      if (!expired) throw new Error("Tanggal expired wajib diisi.");
-
       const hargaJual = hitungHargaJual(hargaBeli, margin);
       if (editId) {
         persist(
@@ -189,9 +187,10 @@ function StokPage() {
           </div>
         ) : (
           filtered.map((b) => {
+            const hasExp = !!b.expired;
             const sisaHari = hariSampaiExpired(b.expired);
             const sStok = statusStok(b);
-            const sExp = sisaHari < 0 ? "expired" : sisaHari <= 14 ? "danger" : "ok";
+            const sExp = !hasExp ? "none" : sisaHari < 0 ? "expired" : sisaHari <= 14 ? "danger" : "ok";
             return (
               <div key={b.id} className="rounded-xl border border-border bg-card p-4">
                 <div className="flex flex-wrap items-start justify-between gap-3">
@@ -220,7 +219,14 @@ function StokPage() {
                       <span>
                         Jual: <b className="text-primary">{formatRupiah(b.hargaJual)}</b>
                       </span>
-                      <span>Exp: {b.expired}</span>
+                      <span>
+                        Exp:{" "}
+                        {b.expired ? (
+                          formatTanggal(b.expired)
+                        ) : (
+                          <span className="text-[#9CA3AF]">∞</span>
+                        )}
+                      </span>
                     </div>
                     <div className="mt-2 flex flex-wrap gap-2">
                       {sStok === "habis" && <Badge tone="danger">Stok Habis</Badge>}
@@ -380,11 +386,23 @@ function StokPage() {
                   />
                 </Field>
               </div>
-              <Field label="Tanggal Expired">
+              <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                <input
+                  type="checkbox"
+                  checked={form.expired === ""}
+                  onChange={(e) =>
+                    setForm({ ...form, expired: e.target.checked ? "" : form.expired || "" })
+                  }
+                  className="h-4 w-4 rounded border-input"
+                />
+                Barang Non-Perishable (tanpa kadaluarsa)
+              </label>
+              <Field label="Tanggal Kadaluarsa (opsional)">
                 <input
                   type="date"
                   className={inputCls}
                   value={form.expired}
+                  placeholder="Kosongkan untuk barang tahan lama (sapu, ember, dll)"
                   onChange={(e) => setForm({ ...form, expired: e.target.value })}
                 />
               </Field>
@@ -413,6 +431,12 @@ function StokPage() {
 
 const inputCls =
   "w-full rounded-lg border border-input bg-background px-3 py-2.5 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20";
+
+function formatTanggal(s: string) {
+  const [y, m, d] = s.split("-");
+  if (!y || !m || !d) return s;
+  return `${d}/${m}/${y}`;
+}
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
