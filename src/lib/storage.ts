@@ -8,7 +8,7 @@ export type Barang = {
   hargaBeli: number;
   marginPersen: number;
   hargaJual: number;
-  expired: string; // YYYY-MM-DD
+  expired: string | null; // YYYY-MM-DD, null = non-perishable
   imageUrl?: string;
 };
 
@@ -109,7 +109,7 @@ function migrasiBarang(b: any): Barang {
     hargaBeli,
     marginPersen: margin,
     hargaJual,
-    expired: b.expired ?? "",
+    expired: b.expired ? b.expired : null,
     imageUrl: b.imageUrl || b.foto || undefined,
   };
 }
@@ -162,7 +162,7 @@ export function formatRupiah(n: number) {
 export function hitungHargaJual(hargaBeli: number, margin: number) {
   return Math.round(hargaBeli * (1 + margin / 100));
 }
-export function hariSampaiExpired(tanggal: string): number {
+export function hariSampaiExpired(tanggal: string | null | undefined): number {
   if (!tanggal) return 999;
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -180,6 +180,7 @@ export function statusStok(b: Barang): "ok" | "menipis" | "habis" {
   return "ok";
 }
 export function statusExpired(b: Barang): "ok" | "warning" | "danger" {
+  if (!b.expired) return "ok";
   const d = hariSampaiExpired(b.expired);
   if (d < 0) return "danger";
   if (d <= 14) return "danger";
