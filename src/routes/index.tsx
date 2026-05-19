@@ -33,7 +33,7 @@ import {
   Line,
   CartesianGrid,
 } from "recharts";
-import { TrendingUp, AlertTriangle, CalendarClock, Wallet, Undo2, HandCoins, Bell } from "lucide-react";
+import { TrendingUp, AlertTriangle, CalendarClock, Wallet, Undo2, Bell } from "lucide-react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/")({
