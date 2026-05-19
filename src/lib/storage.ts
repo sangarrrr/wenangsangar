@@ -416,13 +416,77 @@ export function statusExpired(b: Barang): "ok" | "warning" | "danger" {
 export function getLabaBersih(bulan: number, tahun: number) {
   const trx = _trx.filter((t) => {
     const d = new Date(t.tanggal);
-    return d.getMonth() + 1 === bulan && d.getFullYear() === tahun && t.metode === "Cash";
+    return d.getMonth() + 1 === bulan && d.getFullYear() === tahun;
   });
+  const trxCash = trx.filter((t) => t.metode === "Cash");
   const peng = _peng.filter((p) => p.bulan === bulan && p.tahun === tahun);
-  const pemasukan = trx.reduce((s, t) => s + t.total, 0);
+  const penjualanCash = trxCash.reduce((s, t) => s + t.total, 0);
+  // Profit dihitung dari SEMUA transaksi (Cash + Piutang) karena profit dicatat
+  // saat transaksi awal, bukan saat pelunasan piutang.
   const profit = trx.reduce((s, t) => s + t.profit, 0);
+  const pelunasanPiutang = getCicilanPayments(bulan, tahun).reduce(
+    (s, c) => s + c.jumlah,
+    0,
+  );
+  // Total uang masuk = penjualan cash + pelunasan piutang (perpindahan aset).
+  const pemasukan = penjualanCash + pelunasanPiutang;
   const pengeluaran = peng.reduce((s, p) => s + p.jumlah, 0);
-  return { pemasukan, profit, pengeluaran, laba: profit - pengeluaran };
+  return {
+    pemasukan,
+    penjualanCash,
+    pelunasanPiutang,
+    profit,
+    pengeluaran,
+    laba: profit - pengeluaran,
+    arusKas: pemasukan - pengeluaran,
+  };
+}
+
+// ===== Cicilan payments (di-extract dari receivables.cicilan JSONB) =====
+export type CicilanPayment = {
+  receivableId: string;
+  namaPelanggan: string;
+  telepon: string;
+  tanggal: string;
+  jumlah: number;
+  sisaSetelah: number;
+};
+
+export function getAllCicilanPayments(): CicilanPayment[] {
+  const out: CicilanPayment[] = [];
+  for (const p of _piutang) {
+    let sisaRunning = p.totalHutang;
+    const sorted = [...p.cicilan].sort(
+      (a, b) => new Date(a.tanggal).getTime() - new Date(b.tanggal).getTime(),
+    );
+    for (const c of sorted) {
+      sisaRunning = Math.max(0, sisaRunning - c.jumlah);
+      out.push({
+        receivableId: p.id,
+        namaPelanggan: p.namaPelanggan,
+        telepon: p.telepon,
+        tanggal: c.tanggal,
+        jumlah: c.jumlah,
+        sisaSetelah: sisaRunning,
+      });
+    }
+  }
+  return out.sort(
+    (a, b) => new Date(b.tanggal).getTime() - new Date(a.tanggal).getTime(),
+  );
+}
+
+export function getCicilanPayments(bulan: number, tahun: number): CicilanPayment[] {
+  return getAllCicilanPayments().filter((c) => {
+    const d = new Date(c.tanggal);
+    return d.getMonth() + 1 === bulan && d.getFullYear() === tahun;
+  });
+}
+
+export function getTotalPiutangBelumLunas(): number {
+  return _piutang
+    .filter((p) => p.status !== "Lunas")
+    .reduce((s, p) => s + p.sisaHutang, 0);
 }
 
 export function exportSemuaData() {
