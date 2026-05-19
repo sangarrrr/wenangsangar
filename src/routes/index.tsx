@@ -11,6 +11,9 @@ import {
   formatRupiah,
   hariSampaiExpired,
   persenStok,
+  getAllCicilanPayments,
+  getTotalPiutangBelumLunas,
+  type CicilanPayment,
   type Barang,
   type Transaksi,
   type Piutang,
@@ -30,7 +33,7 @@ import {
   Line,
   CartesianGrid,
 } from "recharts";
-import { TrendingUp, AlertTriangle, CalendarClock, Wallet, Undo2 } from "lucide-react";
+import { TrendingUp, AlertTriangle, CalendarClock, Wallet, Undo2, HandCoins, Bell } from "lucide-react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/")({
@@ -45,6 +48,7 @@ function Dashboard() {
   const [trx, setTrx] = useState<Transaksi[]>([]);
   const [piutang, setPiutang] = useState<Piutang[]>([]);
   const [retur, setRetur] = useState<ReturLog[]>([]);
+  const [cicilanAll, setCicilanAll] = useState<CicilanPayment[]>([]);
   const [showReset, setShowReset] = useState(false);
   const [konfirmText, setKonfirmText] = useState("");
   const [resetting, setResetting] = useState(false);
@@ -56,6 +60,7 @@ function Dashboard() {
       setTrx(getTransaksi());
       setPiutang(getPiutang());
       setRetur(getRetur());
+      setCicilanAll(getAllCicilanPayments());
       try {
         setLastReset(localStorage.getItem("sembako-last-reset"));
       } catch {}
@@ -91,9 +96,15 @@ function Dashboard() {
 
   const today = new Date();
   const todayStr = today.toDateString();
-  const totalHariIni = trx
+  const penjualanCashHariIni = trx
     .filter((t) => new Date(t.tanggal).toDateString() === todayStr)
+    .filter((t) => t.metode === "Cash")
     .reduce((s, t) => s + t.total, 0);
+  const cicilanHariIni = cicilanAll.filter(
+    (c) => new Date(c.tanggal).toDateString() === todayStr,
+  );
+  const totalCicilanHariIni = cicilanHariIni.reduce((s, c) => s + c.jumlah, 0);
+  const totalPemasukanHariIni = penjualanCashHariIni + totalCicilanHariIni;
 
   const returHariIni = retur
     .filter((r) => new Date(r.tanggal).toDateString() === todayStr)
@@ -107,20 +118,9 @@ function Dashboard() {
   }).length;
 
   const ringkasan = getLabaBersih(today.getMonth() + 1, today.getFullYear());
-  const piutangBelum = piutang
-    .filter((p) => p.status !== "Lunas")
-    .reduce((s, p) => s + p.sisaHutang, 0);
-
-  const totalUangMasuk = trx
-    .filter((t) => {
-      const d = new Date(t.tanggal);
-      return (
-        d.getMonth() === today.getMonth() &&
-        d.getFullYear() === today.getFullYear() &&
-        t.metode === "Cash"
-      );
-    })
-    .reduce((s, t) => s + t.total, 0);
+  const piutangBelum = getTotalPiutangBelumLunas();
+  // total uang masuk bulan ini = cash sales + pelunasan piutang
+  const totalUangMasuk = ringkasan.pemasukan;
 
   const rasioKas =
     totalUangMasuk + piutangBelum === 0
@@ -153,23 +153,28 @@ function Dashboard() {
       .slice(0, 8);
   }, [trx]);
 
-  // Tren 30 hari
+  // Tren 30 hari — pisah cash sales vs pelunasan piutang
   const tren30 = useMemo(() => {
-    const arr: { tgl: string; total: number }[] = [];
+    const arr: { tgl: string; cash: number; cicilan: number }[] = [];
     for (let i = 29; i >= 0; i--) {
       const d = new Date();
       d.setDate(d.getDate() - i);
       const key = d.toDateString();
-      const total = trx
+      const cash = trx
         .filter((t) => new Date(t.tanggal).toDateString() === key)
+        .filter((t) => t.metode === "Cash")
         .reduce((s, t) => s + t.total, 0);
+      const cicilan = cicilanAll
+        .filter((c) => new Date(c.tanggal).toDateString() === key)
+        .reduce((s, c) => s + c.jumlah, 0);
       arr.push({
         tgl: d.toLocaleDateString("id-ID", { day: "2-digit", month: "short" }),
-        total,
+        cash,
+        cicilan,
       });
     }
     return arr;
-  }, [trx]);
+  }, [trx, cicilanAll]);
 
   return (
     <div className="space-y-5">
@@ -178,16 +183,52 @@ function Dashboard() {
         <p className="text-sm text-muted-foreground">Ringkasan toko hari ini</p>
       </div>
 
+      {cicilanHariIni.length > 0 && (
+        <div className="flex items-start gap-3 rounded-xl border border-primary/30 bg-[var(--primary-soft)] p-3 text-sm">
+          <Bell className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+          <div className="flex-1">
+            <div className="font-semibold text-primary">
+              {cicilanHariIni.length} cicilan masuk hari ini — {formatRupiah(totalCicilanHariIni)}
+            </div>
+            <div className="text-xs text-muted-foreground">
+              {cicilanHariIni
+                .slice(0, 3)
+                .map((c) => `${c.namaPelanggan} (${formatRupiah(c.jumlah)})`)
+                .join(" • ")}
+              {cicilanHariIni.length > 3 ? " • …" : ""}
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <SumCard icon={<TrendingUp className="h-4 w-4" />} label="Penjualan Hari Ini" value={formatRupiah(totalHariIni)} tone="primary" />
+        <SumCard icon={<TrendingUp className="h-4 w-4" />} label="Pemasukan Hari Ini" value={formatRupiah(totalPemasukanHariIni)} tone="primary" />
         <SumCard icon={<AlertTriangle className="h-4 w-4" />} label="Stok Menipis" value={`${stokMenipis} item`} tone="warning" />
         <SumCard icon={<CalendarClock className="h-4 w-4" />} label="Hampir Expired" value={`${hampirExpired} item`} tone="danger" />
         <SumCard icon={<Wallet className="h-4 w-4" />} label="Piutang Aktif" value={formatRupiah(piutangBelum)} tone="warning" />
         <SumCard icon={<Undo2 className="h-4 w-4" />} label="Total Retur Hari Ini" value={formatRupiah(returHariIni)} tone="retur" />
       </div>
 
+      <div className="rounded-xl border border-border bg-card p-4">
+        <div className="mb-3 flex items-center justify-between">
+          <h3 className="text-sm font-semibold">Breakdown Pemasukan Hari Ini</h3>
+          <span className="rounded-full bg-[var(--warning)]/15 px-2 py-0.5 text-[10px] font-semibold text-[var(--warning-foreground)]">
+            Piutang Belum Lunas: {formatRupiah(piutangBelum)}
+          </span>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-3">
+          <BreakdownRow label="💵 Penjualan Cash" value={formatRupiah(penjualanCashHariIni)} />
+          <BreakdownRow label="🤝 Pelunasan Piutang" value={formatRupiah(totalCicilanHariIni)} />
+          <BreakdownRow label="✅ Total Pemasukan" value={formatRupiah(totalPemasukanHariIni)} highlight />
+        </div>
+        <p className="mt-2 text-[11px] text-muted-foreground">
+          * Pelunasan piutang = perpindahan aset (piutang → kas), bukan profit baru. Profit
+          sudah tercatat saat transaksi awal.
+        </p>
+      </div>
+
       <div className="grid gap-3 md:grid-cols-3">
-        <MiniCard label="💵 Uang Masuk (Bulan Ini)" value={formatRupiah(totalUangMasuk)} />
+        <MiniCard label="💵 Pemasukan Bulan Ini" value={formatRupiah(totalUangMasuk)} />
         <MiniCard label="💸 Pengeluaran" value={formatRupiah(ringkasan.pengeluaran)} />
         <MiniCard
           label="✅ Laba Bersih"
@@ -195,6 +236,11 @@ function Dashboard() {
           highlight={ringkasan.laba >= 0 ? "primary" : "danger"}
         />
       </div>
+      <p className="-mt-2 text-[11px] text-muted-foreground">
+        Pemasukan bulan ini = Penjualan Cash ({formatRupiah(ringkasan.penjualanCash)}) +
+        Pelunasan Piutang ({formatRupiah(ringkasan.pelunasanPiutang)}). Arus kas bersih:{" "}
+        <b>{formatRupiah(ringkasan.arusKas)}</b>.
+      </p>
 
       <div className="rounded-xl border border-border bg-card p-4">
         <div className="flex items-center justify-between text-sm">
@@ -251,8 +297,8 @@ function Dashboard() {
         </ChartCard>
       </div>
 
-      <ChartCard title="Tren Penjualan 30 Hari Terakhir">
-        {trx.length === 0 ? (
+      <ChartCard title="Arus Kas 30 Hari Terakhir (Cash Sales vs Pelunasan Piutang)">
+        {trx.length === 0 && cicilanAll.length === 0 ? (
           <Empty />
         ) : (
         <ResponsiveContainer width="100%" height={240}>
@@ -261,7 +307,8 @@ function Dashboard() {
             <XAxis dataKey="tgl" tick={{ fontSize: 10 }} interval={3} />
             <YAxis tick={{ fontSize: 10 }} tickFormatter={(v) => `${v / 1000}k`} />
             <Tooltip formatter={(v: number) => formatRupiah(v)} />
-            <Line type="monotone" dataKey="total" stroke="#10B981" strokeWidth={2.5} dot={false} />
+            <Line type="monotone" dataKey="cash" name="Cash Sales" stroke="#10B981" strokeWidth={2.5} dot={false} />
+            <Line type="monotone" dataKey="cicilan" name="Pelunasan Piutang" stroke="#3B82F6" strokeWidth={2.5} dot={false} />
           </LineChart>
         </ResponsiveContainer>
         )}
@@ -354,6 +401,14 @@ function MiniCard({ label, value, highlight }: { label: string; value: string; h
     <div className="rounded-xl border border-border bg-card p-4">
       <div className="text-xs text-muted-foreground">{label}</div>
       <div className={`mt-1 text-lg font-bold ${cls}`}>{value}</div>
+    </div>
+  );
+}
+function BreakdownRow({ label, value, highlight }: { label: string; value: string; highlight?: boolean }) {
+  return (
+    <div className={`rounded-lg border p-3 ${highlight ? "border-primary/40 bg-[var(--primary-soft)]" : "border-border bg-background"}`}>
+      <div className="text-[11px] text-muted-foreground">{label}</div>
+      <div className={`mt-0.5 text-base font-bold ${highlight ? "text-primary" : ""}`}>{value}</div>
     </div>
   );
 }
