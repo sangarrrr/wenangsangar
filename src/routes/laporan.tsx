@@ -6,6 +6,7 @@ import {
   getLabaBersih,
   formatRupiah,
   exportSemuaData,
+  getCicilanPayments,
   type Pengeluaran,
 } from "@/lib/storage";
 import { toast } from "sonner";
@@ -74,6 +75,8 @@ function LaporanPage() {
 
   const ringkasan = getLabaBersih(bulan, tahun);
   const filtered = items.filter((p) => p.bulan === bulan && p.tahun === tahun);
+  const cicilan = getCicilanPayments(bulan, tahun);
+  const totalCicilan = cicilan.reduce((s, c) => s + c.jumlah, 0);
 
   return (
     <div className="space-y-5">
@@ -119,9 +122,70 @@ function LaporanPage() {
           tone={ringkasan.laba >= 0 ? "primary" : "danger"}
         />
       </div>
-      <p className="text-xs text-muted-foreground">
-        * Laba bersih = total profit penjualan Cash − total pengeluaran bulan terpilih
-      </p>
+      <div className="rounded-lg border border-border bg-card p-3 text-xs text-muted-foreground">
+        <div>
+          • Pemasukan = Penjualan Cash <b>{formatRupiah(ringkasan.penjualanCash)}</b> +
+          Pelunasan Piutang <b>{formatRupiah(ringkasan.pelunasanPiutang)}</b>
+        </div>
+        <div>
+          • Laba bersih = Profit semua transaksi (Cash + Piutang){" "}
+          <b>{formatRupiah(ringkasan.profit)}</b> − Pengeluaran. Pelunasan piutang BUKAN
+          profit baru (hanya perpindahan aset).
+        </div>
+        <div>
+          • Arus kas bulan ini: <b>{formatRupiah(ringkasan.arusKas)}</b>
+        </div>
+      </div>
+
+      <div className="rounded-xl border border-border bg-card">
+        <div className="flex items-center justify-between border-b border-border px-4 py-3">
+          <div className="font-semibold">🤝 Pembayaran Piutang ({cicilan.length})</div>
+          <div className="text-sm">
+            Total: <b className="text-primary">{formatRupiah(totalCicilan)}</b>
+          </div>
+        </div>
+        {cicilan.length === 0 ? (
+          <div className="p-6 text-center text-sm text-muted-foreground">
+            Belum ada pembayaran cicilan bulan ini.
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-muted/50 text-xs text-muted-foreground">
+                <tr>
+                  <th className="px-3 py-2 text-left">Tanggal</th>
+                  <th className="px-3 py-2 text-left">Pelanggan</th>
+                  <th className="px-3 py-2 text-right">Jumlah Cicilan</th>
+                  <th className="px-3 py-2 text-right">Sisa Hutang</th>
+                </tr>
+              </thead>
+              <tbody>
+                {cicilan.map((c, i) => (
+                  <tr key={i} className="border-t border-border">
+                    <td className="px-3 py-2">
+                      {new Date(c.tanggal).toLocaleDateString("id-ID")}
+                    </td>
+                    <td className="px-3 py-2">
+                      <div className="font-medium">{c.namaPelanggan}</div>
+                      {c.telepon && (
+                        <div className="text-[11px] text-muted-foreground">{c.telepon}</div>
+                      )}
+                    </td>
+                    <td className="px-3 py-2 text-right font-semibold text-primary">
+                      {formatRupiah(c.jumlah)}
+                    </td>
+                    <td className="px-3 py-2 text-right">
+                      <span className={c.sisaSetelah === 0 ? "text-primary" : "text-destructive"}>
+                        {formatRupiah(c.sisaSetelah)}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
 
       <div className="rounded-xl border border-border bg-card p-4">
         <h3 className="mb-3 font-bold">Tambah Pengeluaran</h3>
