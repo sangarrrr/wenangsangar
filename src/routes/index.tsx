@@ -13,6 +13,7 @@ import {
   persenStok,
   getAllCicilanPayments,
   getTotalPiutangBelumLunas,
+  getLabaTerealisasi,
   type CicilanPayment,
   type Barang,
   type Transaksi,
