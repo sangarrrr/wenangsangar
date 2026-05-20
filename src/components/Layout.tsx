@@ -20,13 +20,19 @@ const navKaryawan = [
 export function Layout() {
   const { pathname } = useLocation();
   const navigate = useNavigate();
-  const nav = isOwner() ? navOwner : navKaryawan;
+  const nav: readonly { to: string; label: string; icon: any }[] = isOwner()
+    ? navOwner
+    : navKaryawan;
   const gridCols =
-    nav.length === 2
+    nav.length <= 2
       ? "grid-cols-2"
-      : nav.length === 5
-        ? "grid-cols-5"
-        : "grid-cols-6";
+      : nav.length === 3
+        ? "grid-cols-3"
+        : nav.length === 4
+          ? "grid-cols-4"
+          : nav.length === 5
+            ? "grid-cols-5"
+            : "grid-cols-6";
   async function logout() {
     await supabase.auth.signOut();
     clearCache();
