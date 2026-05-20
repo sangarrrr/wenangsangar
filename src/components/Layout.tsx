@@ -1,20 +1,32 @@
 import { Link, Outlet, useLocation, useNavigate } from "@tanstack/react-router";
-import { LayoutDashboard, Package, ShoppingCart, Wallet, BarChart3, LogOut } from "lucide-react";
+import { LayoutDashboard, Package, ShoppingCart, Wallet, BarChart3, LogOut, Users } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { clearCache } from "@/lib/storage";
+import { clearCache, isOwner } from "@/lib/storage";
 import { toast } from "sonner";
 
-const nav = [
+const navOwner = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard },
   { to: "/stok", label: "Stok", icon: Package },
   { to: "/kasir", label: "Kasir", icon: ShoppingCart },
   { to: "/piutang", label: "Piutang", icon: Wallet },
   { to: "/laporan", label: "Laporan", icon: BarChart3 },
-];
+  { to: "/users", label: "User", icon: Users },
+] as const;
+const navKaryawan = [
+  { to: "/stok", label: "Stok", icon: Package },
+  { to: "/kasir", label: "Kasir", icon: ShoppingCart },
+] as const;
 
 export function Layout() {
   const { pathname } = useLocation();
   const navigate = useNavigate();
+  const nav = isOwner() ? navOwner : navKaryawan;
+  const gridCols =
+    nav.length === 2
+      ? "grid-cols-2"
+      : nav.length === 5
+        ? "grid-cols-5"
+        : "grid-cols-6";
   async function logout() {
     await supabase.auth.signOut();
     clearCache();
@@ -60,7 +72,7 @@ export function Layout() {
       <main className="mx-auto max-w-6xl px-4 py-5">
         <Outlet />
       </main>
-      <nav className="fixed bottom-0 left-0 right-0 z-10 grid grid-cols-5 border-t border-border bg-card md:hidden">
+      <nav className={`fixed bottom-0 left-0 right-0 z-10 grid ${gridCols} border-t border-border bg-card md:hidden`}>
         {nav.map((n) => {
           const active = pathname === n.to;
           const Icon = n.icon;
