@@ -11,7 +11,7 @@ import {
 } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { hydrateAll, clearCache, isOwner, isHydrated } from "@/lib/storage";
+import { hydrateAll, clearCache, isOwner } from "@/lib/storage";
 import { toast } from "sonner";
 
 import appCss from "../styles.css?url";
