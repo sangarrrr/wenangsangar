@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as UsersRouteImport } from './routes/users'
 import { Route as StokRouteImport } from './routes/stok'
 import { Route as PiutangRouteImport } from './routes/piutang'
 import { Route as LoginRouteImport } from './routes/login'
@@ -16,6 +17,11 @@ import { Route as LaporanRouteImport } from './routes/laporan'
 import { Route as KasirRouteImport } from './routes/kasir'
 import { Route as IndexRouteImport } from './routes/index'
 
+const UsersRoute = UsersRouteImport.update({
+  id: '/users',
+  path: '/users',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const StokRoute = StokRouteImport.update({
   id: '/stok',
   path: '/stok',
@@ -54,6 +60,7 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/piutang': typeof PiutangRoute
   '/stok': typeof StokRoute
+  '/users': typeof UsersRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -62,6 +69,7 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/piutang': typeof PiutangRoute
   '/stok': typeof StokRoute
+  '/users': typeof UsersRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -71,13 +79,29 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/piutang': typeof PiutangRoute
   '/stok': typeof StokRoute
+  '/users': typeof UsersRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/kasir' | '/laporan' | '/login' | '/piutang' | '/stok'
+  fullPaths:
+    | '/'
+    | '/kasir'
+    | '/laporan'
+    | '/login'
+    | '/piutang'
+    | '/stok'
+    | '/users'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/kasir' | '/laporan' | '/login' | '/piutang' | '/stok'
-  id: '__root__' | '/' | '/kasir' | '/laporan' | '/login' | '/piutang' | '/stok'
+  to: '/' | '/kasir' | '/laporan' | '/login' | '/piutang' | '/stok' | '/users'
+  id:
+    | '__root__'
+    | '/'
+    | '/kasir'
+    | '/laporan'
+    | '/login'
+    | '/piutang'
+    | '/stok'
+    | '/users'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -87,10 +111,18 @@ export interface RootRouteChildren {
   LoginRoute: typeof LoginRoute
   PiutangRoute: typeof PiutangRoute
   StokRoute: typeof StokRoute
+  UsersRoute: typeof UsersRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/users': {
+      id: '/users'
+      path: '/users'
+      fullPath: '/users'
+      preLoaderRoute: typeof UsersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/stok': {
       id: '/stok'
       path: '/stok'
@@ -143,7 +175,18 @@ const rootRouteChildren: RootRouteChildren = {
   LoginRoute: LoginRoute,
   PiutangRoute: PiutangRoute,
   StokRoute: StokRoute,
+  UsersRoute: UsersRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
