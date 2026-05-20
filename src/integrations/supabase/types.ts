@@ -126,6 +126,7 @@ export type Database = {
           email: string | null
           id: string
           nama_toko: string | null
+          role: string
         }
         Insert: {
           alamat_toko?: string | null
@@ -133,6 +134,7 @@ export type Database = {
           email?: string | null
           id: string
           nama_toko?: string | null
+          role?: string
         }
         Update: {
           alamat_toko?: string | null
@@ -140,6 +142,7 @@ export type Database = {
           email?: string | null
           id?: string
           nama_toko?: string | null
+          role?: string
         }
         Relationships: []
       }
@@ -331,7 +334,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      is_owner: { Args: { _user_id: string }; Returns: boolean }
     }
     Enums: {
       [_ in never]: never
