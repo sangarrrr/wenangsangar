@@ -11,7 +11,8 @@ import {
 } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { hydrateAll, clearCache } from "@/lib/storage";
+import { hydrateAll, clearCache, isOwner, isHydrated } from "@/lib/storage";
+import { toast } from "sonner";
 
 import appCss from "../styles.css?url";
 import { Layout } from "../components/Layout";
@@ -165,6 +166,17 @@ function AuthGate() {
     if (status === "anon" && !isLogin) navigate({ to: "/login" });
     if (status === "authed" && isLogin) navigate({ to: "/" });
   }, [status, isLogin, navigate]);
+
+  // Role-based route guard: karyawan hanya boleh akses /kasir & /stok
+  useEffect(() => {
+    if (status !== "authed" || !hydrated) return;
+    if (isOwner()) return;
+    const allowed = ["/kasir", "/stok", "/login"];
+    if (!allowed.includes(location.pathname)) {
+      toast.error("Akses ditolak. Halaman ini khusus Owner.");
+      navigate({ to: "/kasir" });
+    }
+  }, [status, hydrated, location.pathname, navigate]);
 
   if (isLogin) return <Outlet />;
   if (status === "checking" || (status === "authed" && !hydrated)) {
