@@ -15,6 +15,8 @@ function PiutangPage() {
   const [items, setItems] = useState<Piutang[]>([]);
   const [filter, setFilter] = useState<Filter>("semua");
   const [bayar, setBayar] = useState<{ id: string; jumlah: string } | null>(null);
+  const [konfirmLunas, setKonfirmLunas] = useState<Piutang | null>(null);
+  const [processingLunas, setProcessingLunas] = useState(false);
 
   useEffect(() => {
     setItems(getPiutang());
@@ -37,13 +39,18 @@ function PiutangPage() {
     return items;
   }, [items, filter]);
 
-  function tandaiLunas(p: Piutang) {
+  function konfirmasiLunas() {
+    if (!konfirmLunas || processingLunas) return;
+    setProcessingLunas(true);
+    const p = konfirmLunas;
     persist(
       items.map((x) =>
         x.id === p.id ? { ...x, status: "Lunas", sisaHutang: 0 } : x,
       ),
     );
-    toast.success("Ditandai lunas.");
+    toast.success(`Hutang ${p.namaPelanggan} ditandai LUNAS.`);
+    setKonfirmLunas(null);
+    setTimeout(() => setProcessingLunas(false), 800);
   }
 
   function hapusPiutang(p: Piutang) {
@@ -165,7 +172,7 @@ function PiutangPage() {
                         Catat Cicilan
                       </button>
                       <button
-                        onClick={() => tandaiLunas(p)}
+                        onClick={() => setKonfirmLunas(p)}
                         className="inline-flex items-center gap-1 rounded-lg border border-border px-3 py-1.5 text-xs"
                       >
                         <CheckCircle2 className="h-3 w-3" /> Lunas
@@ -210,6 +217,39 @@ function PiutangPage() {
                 className="flex-1 rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground"
               >
                 Simpan
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {konfirmLunas && (
+        <div className="fixed inset-0 z-30 flex items-center justify-center bg-foreground/40 p-4">
+          <div className="w-full max-w-sm rounded-2xl bg-card p-5 shadow-xl">
+            <h3 className="mb-2 flex items-center gap-2 text-base font-bold">
+              <AlertCircle className="h-5 w-5 text-[var(--warning-foreground)]" />
+              Konfirmasi Lunas
+            </h3>
+            <p className="text-sm text-muted-foreground">
+              ⚠️ Tandai hutang <b className="text-foreground">{konfirmLunas.namaPelanggan}</b>{" "}
+              sebesar{" "}
+              <b className="text-foreground">{formatRupiah(konfirmLunas.sisaHutang)}</b> sebagai{" "}
+              <b className="text-primary">LUNAS</b>? Data ini tidak bisa di-undo.
+            </p>
+            <div className="mt-5 flex gap-2">
+              <button
+                onClick={() => setKonfirmLunas(null)}
+                disabled={processingLunas}
+                className="flex-1 rounded-lg border border-border px-4 py-2.5 text-sm"
+              >
+                Batal
+              </button>
+              <button
+                onClick={konfirmasiLunas}
+                disabled={processingLunas}
+                className="flex-1 rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground disabled:opacity-50"
+              >
+                {processingLunas ? "Memproses..." : "Ya, Sudah Lunas"}
               </button>
             </div>
           </div>

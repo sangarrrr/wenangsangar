@@ -13,6 +13,7 @@ import {
   persenStok,
   getAllCicilanPayments,
   getTotalPiutangBelumLunas,
+  getLabaTerealisasi,
   type CicilanPayment,
   type Barang,
   type Transaksi,
@@ -119,6 +120,7 @@ function Dashboard() {
 
   const ringkasan = getLabaBersih(today.getMonth() + 1, today.getFullYear());
   const piutangBelum = getTotalPiutangBelumLunas();
+  const labaInfo = getLabaTerealisasi(today.getMonth() + 1, today.getFullYear());
   // total uang masuk bulan ini = cash sales + pelunasan piutang
   const totalUangMasuk = ringkasan.pemasukan;
 
@@ -241,6 +243,34 @@ function Dashboard() {
         Pelunasan Piutang ({formatRupiah(ringkasan.pelunasanPiutang)}). Arus kas bersih:{" "}
         <b>{formatRupiah(ringkasan.arusKas)}</b>.
       </p>
+
+      <div className="rounded-xl border border-border bg-card p-4">
+        <h3 className="mb-3 text-sm font-semibold">Laba Bulan Ini — Potensial vs Cair</h3>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="rounded-lg border border-border bg-background p-3">
+            <div className="text-[11px] text-muted-foreground">📊 Laba Kotor (Potensial)</div>
+            <div className="mt-0.5 text-lg font-bold">{formatRupiah(labaInfo.labaKotor)}</div>
+            <div className="text-[10px] text-muted-foreground">Dicatat saat barang keluar</div>
+          </div>
+          <div className="rounded-lg border border-primary/40 bg-[var(--primary-soft)] p-3">
+            <div className="text-[11px] text-muted-foreground">💧 Laba Cair (Sudah Masuk Kas)</div>
+            <div className="mt-0.5 text-lg font-bold text-primary">{formatRupiah(labaInfo.labaCair)}</div>
+            <div className="text-[10px] text-muted-foreground">Cash + porsi piutang yang dibayar</div>
+          </div>
+          <div className="rounded-lg border p-3" style={{ borderColor: "oklch(0.75 0.15 60)", background: "oklch(0.97 0.04 75)" }}>
+            <div className="text-[11px] text-muted-foreground">🔒 Laba Terkunci di Piutang</div>
+            <div className="mt-0.5 text-lg font-bold" style={{ color: "oklch(0.55 0.18 50)" }}>
+              {formatRupiah(labaInfo.labaTerkunci)}
+            </div>
+            <div className="text-[10px] text-muted-foreground">Belum cair, masih nyangkut</div>
+          </div>
+          <div className="rounded-lg border border-border bg-background p-3">
+            <div className="text-[11px] text-muted-foreground">💼 Total Piutang Aktif</div>
+            <div className="mt-0.5 text-lg font-bold">{formatRupiah(piutangBelum)}</div>
+            <div className="text-[10px] text-muted-foreground">Sisa hutang yang belum ditagih</div>
+          </div>
+        </div>
+      </div>
 
       <div className="rounded-xl border border-border bg-card p-4">
         <div className="flex items-center justify-between text-sm">

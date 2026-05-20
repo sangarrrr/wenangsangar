@@ -489,6 +489,47 @@ export function getTotalPiutangBelumLunas(): number {
     .reduce((s, p) => s + p.sisaHutang, 0);
 }
 
+// ===== Realized vs Unrealized Profit =====
+// Laba Kotor (Potensial): semua profit dari transaksi (Cash + Piutang) dalam periode.
+// Laba Cair (Terealisasi): profit Cash + profit Piutang × (terbayar/totalHutang).
+// Laba Terkunci: Laba Kotor - Laba Cair (masih nyangkut di piutang).
+export function getLabaTerealisasi(bulan: number, tahun: number) {
+  const inPeriod = (iso: string) => {
+    const d = new Date(iso);
+    return d.getMonth() + 1 === bulan && d.getFullYear() === tahun;
+  };
+  const trxBulan = _trx.filter((t) => inPeriod(t.tanggal));
+  const labaKotor = trxBulan.reduce((s, t) => s + t.profit, 0);
+  const labaCash = trxBulan
+    .filter((t) => t.metode === "Cash")
+    .reduce((s, t) => s + t.profit, 0);
+
+  // Profit per transaksi (semua periode, untuk lookup)
+  const trxProfitById = new Map<string, { profit: number; tanggal: string }>();
+  for (const t of _trx) trxProfitById.set(t.id, { profit: t.profit, tanggal: t.tanggal });
+
+  let labaPiutangRealized = 0;
+  for (const p of _piutang) {
+    if (!p.totalHutang) continue;
+    const ids = (p.transaksiId || "").split(",").map((s) => s.trim()).filter(Boolean);
+    const linked = ids
+      .map((id) => trxProfitById.get(id))
+      .filter((x): x is { profit: number; tanggal: string } => !!x)
+      .filter((x) => inPeriod(x.tanggal));
+    const totalProfitPiutang = linked.reduce((s, x) => s + x.profit, 0);
+    if (totalProfitPiutang <= 0) continue;
+    const fraksiBayar = Math.min(
+      1,
+      Math.max(0, (p.totalHutang - p.sisaHutang) / p.totalHutang),
+    );
+    labaPiutangRealized += totalProfitPiutang * fraksiBayar;
+  }
+
+  const labaCair = labaCash + labaPiutangRealized;
+  const labaTerkunci = Math.max(0, labaKotor - labaCair);
+  return { labaKotor, labaCair, labaTerkunci };
+}
+
 export function exportSemuaData() {
   return {
     barang: _barang,
