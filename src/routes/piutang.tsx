@@ -222,6 +222,39 @@ function PiutangPage() {
           </div>
         </div>
       )}
+
+      {konfirmLunas && (
+        <div className="fixed inset-0 z-30 flex items-center justify-center bg-foreground/40 p-4">
+          <div className="w-full max-w-sm rounded-2xl bg-card p-5 shadow-xl">
+            <h3 className="mb-2 flex items-center gap-2 text-base font-bold">
+              <AlertCircle className="h-5 w-5 text-[var(--warning-foreground)]" />
+              Konfirmasi Lunas
+            </h3>
+            <p className="text-sm text-muted-foreground">
+              ⚠️ Tandai hutang <b className="text-foreground">{konfirmLunas.namaPelanggan}</b>{" "}
+              sebesar{" "}
+              <b className="text-foreground">{formatRupiah(konfirmLunas.sisaHutang)}</b> sebagai{" "}
+              <b className="text-primary">LUNAS</b>? Data ini tidak bisa di-undo.
+            </p>
+            <div className="mt-5 flex gap-2">
+              <button
+                onClick={() => setKonfirmLunas(null)}
+                disabled={processingLunas}
+                className="flex-1 rounded-lg border border-border px-4 py-2.5 text-sm"
+              >
+                Batal
+              </button>
+              <button
+                onClick={konfirmasiLunas}
+                disabled={processingLunas}
+                className="flex-1 rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground disabled:opacity-50"
+              >
+                {processingLunas ? "Memproses..." : "Ya, Sudah Lunas"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
