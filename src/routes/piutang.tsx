@@ -15,6 +15,8 @@ function PiutangPage() {
   const [items, setItems] = useState<Piutang[]>([]);
   const [filter, setFilter] = useState<Filter>("semua");
   const [bayar, setBayar] = useState<{ id: string; jumlah: string } | null>(null);
+  const [konfirmLunas, setKonfirmLunas] = useState<Piutang | null>(null);
+  const [processingLunas, setProcessingLunas] = useState(false);
 
   useEffect(() => {
     setItems(getPiutang());
@@ -37,13 +39,18 @@ function PiutangPage() {
     return items;
   }, [items, filter]);
 
-  function tandaiLunas(p: Piutang) {
+  function konfirmasiLunas() {
+    if (!konfirmLunas || processingLunas) return;
+    setProcessingLunas(true);
+    const p = konfirmLunas;
     persist(
       items.map((x) =>
         x.id === p.id ? { ...x, status: "Lunas", sisaHutang: 0 } : x,
       ),
     );
-    toast.success("Ditandai lunas.");
+    toast.success(`Hutang ${p.namaPelanggan} ditandai LUNAS.`);
+    setKonfirmLunas(null);
+    setTimeout(() => setProcessingLunas(false), 800);
   }
 
   function hapusPiutang(p: Piutang) {
@@ -165,7 +172,7 @@ function PiutangPage() {
                         Catat Cicilan
                       </button>
                       <button
-                        onClick={() => tandaiLunas(p)}
+                        onClick={() => setKonfirmLunas(p)}
                         className="inline-flex items-center gap-1 rounded-lg border border-border px-3 py-1.5 text-xs"
                       >
                         <CheckCircle2 className="h-3 w-3" /> Lunas
