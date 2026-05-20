@@ -74,6 +74,8 @@ let _peng: Pengeluaran[] = [];
 let _retur: ReturLog[] = [];
 let _hydrated = false;
 let _userId: string | null = null;
+let _role: "owner" | "karyawan" = "owner";
+let _realtimeChannel: ReturnType<typeof supabase.channel> | null = null;
 
 function emit(k = "all") {
   try {
@@ -93,7 +95,19 @@ export function clearCache() {
   _retur = [];
   _hydrated = false;
   _userId = null;
+  _role = "owner";
+  if (_realtimeChannel) {
+    supabase.removeChannel(_realtimeChannel);
+    _realtimeChannel = null;
+  }
   emit("clear");
+}
+
+export function getRole(): "owner" | "karyawan" {
+  return _role;
+}
+export function isOwner(): boolean {
+  return _role === "owner";
 }
 
 async function getUserId(): Promise<string> {
@@ -257,13 +271,14 @@ function returToRow(r: ReturLog, userId: string) {
 
 // ===== Hydration =====
 export async function hydrateAll(): Promise<void> {
-  await getUserId();
-  const [pr, tr, rec, exp, ret] = await Promise.all([
+  const uid = await getUserId();
+  const [pr, tr, rec, exp, ret, prof] = await Promise.all([
     supabase.from("products").select("*").order("created_at", { ascending: false }),
     supabase.from("transactions").select("*").order("created_at", { ascending: false }),
     supabase.from("receivables").select("*").order("created_at", { ascending: false }),
     supabase.from("expenses").select("*").order("tanggal", { ascending: false }),
     supabase.from("returns").select("*").order("created_at", { ascending: false }),
+    supabase.from("profiles").select("role").eq("id", uid).maybeSingle(),
   ]);
   if (pr.error) throw pr.error;
   if (tr.error) throw tr.error;
@@ -275,8 +290,45 @@ export async function hydrateAll(): Promise<void> {
   _piutang = (rec.data ?? []).map(rowToPiutang);
   _peng = (exp.data ?? []).map(rowToPeng);
   _retur = (ret.data ?? []).map(rowToRetur);
+  const roleVal = (prof.data as any)?.role;
+  _role = roleVal === "karyawan" ? "karyawan" : "owner";
   _hydrated = true;
   emit("hydrate");
+  setupRealtime(uid);
+}
+
+// ===== Realtime: refresh piutang & transaksi otomatis =====
+function setupRealtime(uid: string) {
+  if (_realtimeChannel) {
+    supabase.removeChannel(_realtimeChannel);
+  }
+  _realtimeChannel = supabase
+    .channel("sembako-rt-" + uid)
+    .on(
+      "postgres_changes",
+      { event: "*", schema: "public", table: "receivables", filter: `user_id=eq.${uid}` },
+      async () => {
+        const { data } = await supabase
+          .from("receivables")
+          .select("*")
+          .order("created_at", { ascending: false });
+        _piutang = (data ?? []).map(rowToPiutang);
+        emit("piutang");
+      },
+    )
+    .on(
+      "postgres_changes",
+      { event: "*", schema: "public", table: "transactions", filter: `user_id=eq.${uid}` },
+      async () => {
+        const { data } = await supabase
+          .from("transactions")
+          .select("*")
+          .order("created_at", { ascending: false });
+        _trx = (data ?? []).map(rowToTrx);
+        emit("trx");
+      },
+    )
+    .subscribe();
 }
 
 // ===== Generic diff sync =====
@@ -485,7 +537,7 @@ export function getCicilanPayments(bulan: number, tahun: number): CicilanPayment
 
 export function getTotalPiutangBelumLunas(): number {
   return _piutang
-    .filter((p) => p.status !== "Lunas")
+    .filter((p) => p.status !== "Lunas" && p.sisaHutang > 0)
     .reduce((s, p) => s + p.sisaHutang, 0);
 }
 
