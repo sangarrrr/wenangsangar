@@ -287,13 +287,14 @@ function returToRow(r: ReturLog, userId: string) {
 // ===== Hydration =====
 export async function hydrateAll(): Promise<void> {
   const uid = await getUserId();
-  const [pr, tr, rec, exp, ret, prof] = await Promise.all([
+  const [pr, tr, rec, exp, ret, prof, profAll] = await Promise.all([
     supabase.from("products").select("*").order("created_at", { ascending: false }),
     supabase.from("transactions").select("*").order("created_at", { ascending: false }),
     supabase.from("receivables").select("*").order("created_at", { ascending: false }),
     supabase.from("expenses").select("*").order("tanggal", { ascending: false }),
     supabase.from("returns").select("*").order("created_at", { ascending: false }),
     supabase.from("profiles").select("role").eq("id", uid).maybeSingle(),
+    supabase.from("profiles").select("id,email,nama_toko"),
   ]);
   if (pr.error) throw pr.error;
   if (tr.error) throw tr.error;
@@ -307,6 +308,10 @@ export async function hydrateAll(): Promise<void> {
   _retur = (ret.data ?? []).map(rowToRetur);
   const roleVal = (prof.data as any)?.role;
   _role = roleVal === "karyawan" ? "karyawan" : "owner";
+  _userMap = {};
+  for (const p of (profAll.data as any[]) ?? []) {
+    _userMap[p.id] = { email: p.email ?? null, namaToko: p.nama_toko ?? null };
+  }
   _hydrated = true;
   emit("hydrate");
   setupRealtime(uid);
@@ -321,7 +326,7 @@ function setupRealtime(uid: string) {
     .channel("sembako-rt-" + uid)
     .on(
       "postgres_changes",
-      { event: "*", schema: "public", table: "receivables", filter: `user_id=eq.${uid}` },
+      { event: "*", schema: "public", table: "receivables" },
       async () => {
         const { data } = await supabase
           .from("receivables")
@@ -333,7 +338,7 @@ function setupRealtime(uid: string) {
     )
     .on(
       "postgres_changes",
-      { event: "*", schema: "public", table: "transactions", filter: `user_id=eq.${uid}` },
+      { event: "*", schema: "public", table: "transactions" },
       async () => {
         const { data } = await supabase
           .from("transactions")
@@ -341,6 +346,18 @@ function setupRealtime(uid: string) {
           .order("created_at", { ascending: false });
         _trx = (data ?? []).map(rowToTrx);
         emit("trx");
+      },
+    )
+    .on(
+      "postgres_changes",
+      { event: "*", schema: "public", table: "products" },
+      async () => {
+        const { data } = await supabase
+          .from("products")
+          .select("*")
+          .order("created_at", { ascending: false });
+        _barang = (data ?? []).map(rowToBarang);
+        emit("barang");
       },
     )
     .subscribe();
