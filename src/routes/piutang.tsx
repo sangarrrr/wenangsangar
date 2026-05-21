@@ -241,6 +241,11 @@ function PiutangPage() {
               <b className="text-foreground">{formatRupiah(konfirmLunas.sisaHutang)}</b> sebagai{" "}
               <b className="text-primary">LUNAS</b>? Data ini tidak bisa di-undo.
             </p>
+            {konfirmLunas.createdBy && (
+              <p className="mt-2 text-xs text-muted-foreground">
+                Dicatat oleh: <b className="text-foreground">{getUserLabel(konfirmLunas.createdBy)}</b>
+              </p>
+            )}
             <div className="mt-5 flex gap-2">
               <button
                 onClick={() => setKonfirmLunas(null)}
