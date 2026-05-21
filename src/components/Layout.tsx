@@ -15,6 +15,7 @@ const navOwner = [
 const navKaryawan = [
   { to: "/stok", label: "Stok", icon: Package },
   { to: "/kasir", label: "Kasir", icon: ShoppingCart },
+  { to: "/piutang", label: "Piutang", icon: Wallet },
 ] as const;
 
 export function Layout() {

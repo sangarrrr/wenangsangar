@@ -29,6 +29,7 @@ export type Transaksi = {
   jumlahRetur?: number;
   statusRetur?: "Lunas" | "Retur Sebagian" | "Retur Full";
   batchId?: string;
+  createdBy?: string | null;
 };
 
 export type Piutang = {
@@ -43,6 +44,7 @@ export type Piutang = {
   status: "Belum Lunas" | "Cicilan" | "Lunas";
   cicilan: { tanggal: string; jumlah: number }[];
   catatan?: string;
+  createdBy?: string | null;
 };
 
 export type Pengeluaran = {
@@ -76,6 +78,14 @@ let _hydrated = false;
 let _userId: string | null = null;
 let _role: "owner" | "karyawan" = "owner";
 let _realtimeChannel: ReturnType<typeof supabase.channel> | null = null;
+let _userMap: Record<string, { email: string | null; namaToko: string | null }> = {};
+
+export function getUserLabel(uid?: string | null): string {
+  if (!uid) return "—";
+  const u = _userMap[uid];
+  if (!u) return uid.slice(0, 6);
+  return u.namaToko || u.email || uid.slice(0, 6);
+}
 
 function emit(k = "all") {
   try {
@@ -96,6 +106,7 @@ export function clearCache() {
   _hydrated = false;
   _userId = null;
   _role = "owner";
+  _userMap = {};
   if (_realtimeChannel) {
     supabase.removeChannel(_realtimeChannel);
     _realtimeChannel = null;
@@ -165,12 +176,14 @@ function rowToTrx(r: any): Transaksi {
     jumlahRetur: r.jumlah_retur ?? 0,
     statusRetur: (r.status_retur as Transaksi["statusRetur"]) ?? "Lunas",
     batchId: r.batch_id ?? undefined,
+    createdBy: r.created_by ?? r.user_id ?? null,
   };
 }
 function trxToRow(t: Transaksi, userId: string) {
   return {
     id: t.id,
     user_id: userId,
+    created_by: t.createdBy ?? userId,
     product_id: t.produkId || null,
     nama_produk: t.namaProduk,
     quantity: t.jumlah,
@@ -200,12 +213,14 @@ function rowToPiutang(r: any): Piutang {
     status: r.status,
     cicilan: Array.isArray(r.cicilan) ? r.cicilan : [],
     catatan: r.catatan ?? undefined,
+    createdBy: r.created_by ?? r.user_id ?? null,
   };
 }
 function piutangToRow(p: Piutang, userId: string) {
   return {
     id: p.id,
     user_id: userId,
+    created_by: p.createdBy ?? userId,
     transaction_id: null, // ID list dipisah koma -> tidak fit FK; simpan di catatan
     nama_pelanggan: p.namaPelanggan,
     telepon: p.telepon || null,
@@ -272,13 +287,14 @@ function returToRow(r: ReturLog, userId: string) {
 // ===== Hydration =====
 export async function hydrateAll(): Promise<void> {
   const uid = await getUserId();
-  const [pr, tr, rec, exp, ret, prof] = await Promise.all([
+  const [pr, tr, rec, exp, ret, prof, profAll] = await Promise.all([
     supabase.from("products").select("*").order("created_at", { ascending: false }),
     supabase.from("transactions").select("*").order("created_at", { ascending: false }),
     supabase.from("receivables").select("*").order("created_at", { ascending: false }),
     supabase.from("expenses").select("*").order("tanggal", { ascending: false }),
     supabase.from("returns").select("*").order("created_at", { ascending: false }),
     supabase.from("profiles").select("role").eq("id", uid).maybeSingle(),
+    supabase.from("profiles").select("id,email,nama_toko"),
   ]);
   if (pr.error) throw pr.error;
   if (tr.error) throw tr.error;
@@ -292,6 +308,10 @@ export async function hydrateAll(): Promise<void> {
   _retur = (ret.data ?? []).map(rowToRetur);
   const roleVal = (prof.data as any)?.role;
   _role = roleVal === "karyawan" ? "karyawan" : "owner";
+  _userMap = {};
+  for (const p of (profAll.data as any[]) ?? []) {
+    _userMap[p.id] = { email: p.email ?? null, namaToko: p.nama_toko ?? null };
+  }
   _hydrated = true;
   emit("hydrate");
   setupRealtime(uid);
@@ -306,7 +326,7 @@ function setupRealtime(uid: string) {
     .channel("sembako-rt-" + uid)
     .on(
       "postgres_changes",
-      { event: "*", schema: "public", table: "receivables", filter: `user_id=eq.${uid}` },
+      { event: "*", schema: "public", table: "receivables" },
       async () => {
         const { data } = await supabase
           .from("receivables")
@@ -318,7 +338,7 @@ function setupRealtime(uid: string) {
     )
     .on(
       "postgres_changes",
-      { event: "*", schema: "public", table: "transactions", filter: `user_id=eq.${uid}` },
+      { event: "*", schema: "public", table: "transactions" },
       async () => {
         const { data } = await supabase
           .from("transactions")
@@ -326,6 +346,18 @@ function setupRealtime(uid: string) {
           .order("created_at", { ascending: false });
         _trx = (data ?? []).map(rowToTrx);
         emit("trx");
+      },
+    )
+    .on(
+      "postgres_changes",
+      { event: "*", schema: "public", table: "products" },
+      async () => {
+        const { data } = await supabase
+          .from("products")
+          .select("*")
+          .order("created_at", { ascending: false });
+        _barang = (data ?? []).map(rowToBarang);
+        emit("barang");
       },
     )
     .subscribe();

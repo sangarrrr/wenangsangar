@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
-import { getPiutang, savePiutang, formatRupiah, hariSampaiExpired, type Piutang } from "@/lib/storage";
+import { getPiutang, savePiutang, formatRupiah, hariSampaiExpired, getUserLabel, type Piutang } from "@/lib/storage";
 import { toast } from "sonner";
 import { CheckCircle2, AlertCircle, Trash2 } from "lucide-react";
 
@@ -131,6 +131,11 @@ function PiutangPage() {
                       <StatusBadge status={p.status} overdue={overdue} />
                     </div>
                     {p.telepon && <div className="text-xs text-muted-foreground">📞 {p.telepon}</div>}
+                    {p.createdBy && (
+                      <div className="mt-0.5 inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[10px] text-muted-foreground">
+                        Dicatat oleh: <b className="text-foreground">{getUserLabel(p.createdBy)}</b>
+                      </div>
+                    )}
                     <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
                       <div>
                         Total: <b>{formatRupiah(p.totalHutang)}</b>
@@ -236,6 +241,11 @@ function PiutangPage() {
               <b className="text-foreground">{formatRupiah(konfirmLunas.sisaHutang)}</b> sebagai{" "}
               <b className="text-primary">LUNAS</b>? Data ini tidak bisa di-undo.
             </p>
+            {konfirmLunas.createdBy && (
+              <p className="mt-2 text-xs text-muted-foreground">
+                Dicatat oleh: <b className="text-foreground">{getUserLabel(konfirmLunas.createdBy)}</b>
+              </p>
+            )}
             <div className="mt-5 flex gap-2">
               <button
                 onClick={() => setKonfirmLunas(null)}

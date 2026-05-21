@@ -17,6 +17,7 @@ export type Database = {
       customers: {
         Row: {
           created_at: string
+          created_by: string | null
           id: string
           nama: string
           telepon: string | null
@@ -25,6 +26,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          created_by?: string | null
           id?: string
           nama: string
           telepon?: string | null
@@ -33,6 +35,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          created_by?: string | null
           id?: string
           nama?: string
           telepon?: string | null
@@ -44,6 +47,7 @@ export type Database = {
       expenses: {
         Row: {
           bulan: number
+          created_by: string | null
           id: string
           jumlah: number
           kategori: string
@@ -54,6 +58,7 @@ export type Database = {
         }
         Insert: {
           bulan: number
+          created_by?: string | null
           id?: string
           jumlah: number
           kategori: string
@@ -64,6 +69,7 @@ export type Database = {
         }
         Update: {
           bulan?: number
+          created_by?: string | null
           id?: string
           jumlah?: number
           kategori?: string
@@ -77,6 +83,7 @@ export type Database = {
       products: {
         Row: {
           created_at: string
+          created_by: string | null
           expired_date: string | null
           harga_beli: number
           harga_jual: number
@@ -91,6 +98,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          created_by?: string | null
           expired_date?: string | null
           harga_beli?: number
           harga_jual?: number
@@ -105,6 +113,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          created_by?: string | null
           expired_date?: string | null
           harga_beli?: number
           harga_jual?: number
@@ -151,6 +160,7 @@ export type Database = {
           catatan: string | null
           cicilan: Json
           created_at: string
+          created_by: string | null
           customer_id: string | null
           id: string
           jatuh_tempo: string
@@ -166,6 +176,7 @@ export type Database = {
           catatan?: string | null
           cicilan?: Json
           created_at?: string
+          created_by?: string | null
           customer_id?: string | null
           id?: string
           jatuh_tempo: string
@@ -181,6 +192,7 @@ export type Database = {
           catatan?: string | null
           cicilan?: Json
           created_at?: string
+          created_by?: string | null
           customer_id?: string | null
           id?: string
           jatuh_tempo?: string
@@ -213,6 +225,7 @@ export type Database = {
         Row: {
           batch_id: string | null
           created_at: string
+          created_by: string | null
           id: string
           jumlah_retur: number
           nama_produk: string
@@ -224,6 +237,7 @@ export type Database = {
         Insert: {
           batch_id?: string | null
           created_at?: string
+          created_by?: string | null
           id?: string
           jumlah_retur: number
           nama_produk: string
@@ -235,6 +249,7 @@ export type Database = {
         Update: {
           batch_id?: string | null
           created_at?: string
+          created_by?: string | null
           id?: string
           jumlah_retur?: number
           nama_produk?: string
@@ -264,6 +279,7 @@ export type Database = {
         Row: {
           batch_id: string | null
           created_at: string
+          created_by: string | null
           customer_id: string | null
           harga_beli_satuan: number
           harga_jual_satuan: number
@@ -281,6 +297,7 @@ export type Database = {
         Insert: {
           batch_id?: string | null
           created_at?: string
+          created_by?: string | null
           customer_id?: string | null
           harga_beli_satuan: number
           harga_jual_satuan: number
@@ -298,6 +315,7 @@ export type Database = {
         Update: {
           batch_id?: string | null
           created_at?: string
+          created_by?: string | null
           customer_id?: string | null
           harga_beli_satuan?: number
           harga_jual_satuan?: number
