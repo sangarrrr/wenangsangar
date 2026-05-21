@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
   getBarang,
   saveBarang,
+  notifyOwners,
   formatRupiah,
   hitungHargaJual,
   hariSampaiExpired,
@@ -10,8 +11,9 @@ import {
   statusStok,
   type Barang,
 } from "@/lib/storage";
+import { useRealtimeProducts } from "@/hooks/useRealtimeProducts";
 import { toast } from "sonner";
-import { Pencil, Trash2, Plus, X, AlertTriangle, Clock, Upload, ImageOff, Loader2, Package } from "lucide-react";
+import { Pencil, Trash2, Plus, X, AlertTriangle, Clock, Upload, ImageOff, Loader2, Package, AlertCircle, RefreshCw } from "lucide-react";
 import { uploadGambarKeCloudinary, CLOUDINARY_CONFIGURED } from "@/lib/cloudinary";
 
 export const Route = createFileRoute("/stok")({
@@ -41,16 +43,19 @@ const empty: FormState = {
 };
 
 function StokPage() {
+  const { items: rtItems, justUpdated } = useRealtimeProducts();
   const [items, setItems] = useState<Barang[]>([]);
   const [form, setForm] = useState<FormState>(empty);
   const [editId, setEditId] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
   const [uploading, setUploading] = useState(false);
+  const [confirmDel, setConfirmDel] = useState<Barang | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
-    setItems(getBarang());
-  }, []);
+    setItems(rtItems);
+  }, [rtItems]);
 
   const hargaJualPreview = useMemo(() => {
     const hb = Number(form.hargaBeli) || 0;
@@ -105,10 +110,28 @@ function StokPage() {
       setUploading(false);
     }
   }
-  function handleHapus(id: string) {
-    if (!confirm("Hapus barang ini?")) return;
-    persist(items.filter((b) => b.id !== id));
-    toast.success("Barang dihapus.");
+  function handleHapus(b: Barang) {
+    setConfirmDel(b);
+  }
+  async function konfirmasiHapus() {
+    if (!confirmDel) return;
+    const target = confirmDel;
+    setDeleting(true);
+    try {
+      persist(items.filter((b) => b.id !== target.id));
+      await notifyOwners(
+        "stock_deleted",
+        "Barang dihapus",
+        `Barang "${target.nama}" (stok ${target.stok}) dihapus dari inventory.`,
+        { product_id: target.id, nama: target.nama, kategori: target.kategori, stok: target.stok },
+      );
+      toast.success("Barang dihapus. Owner telah dinotifikasi.");
+      setConfirmDel(null);
+    } catch (e: any) {
+      toast.error("Gagal menghapus: " + (e?.message ?? "Unknown"));
+    } finally {
+      setDeleting(false);
+    }
   }
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -136,6 +159,12 @@ function StokPage() {
           ),
         );
         toast.success("Barang diperbarui.");
+        notifyOwners(
+          "stock_updated",
+          "Barang diperbarui",
+          `"${nama}" diperbarui (stok ${stok}).`,
+          { nama, stok },
+        );
       } else {
         const baru: Barang = {
           id: crypto.randomUUID(),
@@ -151,6 +180,12 @@ function StokPage() {
         };
         persist([baru, ...items]);
         toast.success("Barang ditambahkan.");
+        notifyOwners(
+          "stock_added",
+          "Barang baru ditambahkan",
+          `"${nama}" ditambahkan (stok awal ${stokAwal}).`,
+          { nama, stokAwal },
+        );
       }
       setOpen(false);
     } catch (err: any) {
@@ -162,7 +197,14 @@ function StokPage() {
     <div className="space-y-5">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <h2 className="text-2xl font-bold">Manajemen Stok</h2>
+          <h2 className="flex items-center gap-2 text-2xl font-bold">
+            Manajemen Stok
+            {justUpdated && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary">
+                <RefreshCw className="h-3 w-3 animate-spin" /> Updated
+              </span>
+            )}
+          </h2>
           <p className="text-sm text-muted-foreground">Kelola barang, harga & expired</p>
         </div>
         <button
@@ -253,7 +295,7 @@ function StokPage() {
                       <Pencil className="h-4 w-4" />
                     </button>
                     <button
-                      onClick={() => handleHapus(b.id)}
+                      onClick={() => handleHapus(b)}
                       className="inline-flex items-center gap-1 rounded-lg bg-destructive px-3 py-2 text-sm text-destructive-foreground"
                     >
                       <Trash2 className="h-4 w-4" />
