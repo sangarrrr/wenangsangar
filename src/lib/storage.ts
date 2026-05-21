@@ -317,6 +317,38 @@ export async function hydrateAll(): Promise<void> {
   setupRealtime(uid);
 }
 
+// ===== Notifications (owner inbox) =====
+export async function notifyOwners(
+  type: "stock_added" | "stock_deleted" | "stock_updated",
+  title: string,
+  message: string,
+  metadata: Record<string, any> = {},
+): Promise<void> {
+  try {
+    const actor = await getUserId();
+    const { data: owners, error } = await supabase
+      .from("profiles")
+      .select("id")
+      .eq("role", "owner");
+    if (error) throw error;
+    const rows = (owners ?? [])
+      .filter((o: any) => o.id !== actor)
+      .map((o: any) => ({
+        user_id: o.id,
+        actor_id: actor,
+        type,
+        title,
+        message,
+        metadata,
+      }));
+    if (rows.length === 0) return;
+    const { error: insErr } = await (supabase.from("notifications" as any) as any).insert(rows);
+    if (insErr) throw insErr;
+  } catch (e: any) {
+    console.error("[notifyOwners] gagal:", e);
+  }
+}
+
 // ===== Realtime: refresh piutang & transaksi otomatis =====
 function setupRealtime(uid: string) {
   if (_realtimeChannel) {
