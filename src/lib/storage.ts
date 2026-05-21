@@ -29,6 +29,7 @@ export type Transaksi = {
   jumlahRetur?: number;
   statusRetur?: "Lunas" | "Retur Sebagian" | "Retur Full";
   batchId?: string;
+  createdBy?: string | null;
 };
 
 export type Piutang = {
@@ -43,6 +44,7 @@ export type Piutang = {
   status: "Belum Lunas" | "Cicilan" | "Lunas";
   cicilan: { tanggal: string; jumlah: number }[];
   catatan?: string;
+  createdBy?: string | null;
 };
 
 export type Pengeluaran = {
@@ -76,6 +78,14 @@ let _hydrated = false;
 let _userId: string | null = null;
 let _role: "owner" | "karyawan" = "owner";
 let _realtimeChannel: ReturnType<typeof supabase.channel> | null = null;
+let _userMap: Record<string, { email: string | null; namaToko: string | null }> = {};
+
+export function getUserLabel(uid?: string | null): string {
+  if (!uid) return "—";
+  const u = _userMap[uid];
+  if (!u) return uid.slice(0, 6);
+  return u.namaToko || u.email || uid.slice(0, 6);
+}
 
 function emit(k = "all") {
   try {
@@ -96,6 +106,7 @@ export function clearCache() {
   _hydrated = false;
   _userId = null;
   _role = "owner";
+  _userMap = {};
   if (_realtimeChannel) {
     supabase.removeChannel(_realtimeChannel);
     _realtimeChannel = null;
