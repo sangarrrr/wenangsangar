@@ -176,12 +176,14 @@ function rowToTrx(r: any): Transaksi {
     jumlahRetur: r.jumlah_retur ?? 0,
     statusRetur: (r.status_retur as Transaksi["statusRetur"]) ?? "Lunas",
     batchId: r.batch_id ?? undefined,
+    createdBy: r.created_by ?? r.user_id ?? null,
   };
 }
 function trxToRow(t: Transaksi, userId: string) {
   return {
     id: t.id,
     user_id: userId,
+    created_by: t.createdBy ?? userId,
     product_id: t.produkId || null,
     nama_produk: t.namaProduk,
     quantity: t.jumlah,
@@ -211,12 +213,14 @@ function rowToPiutang(r: any): Piutang {
     status: r.status,
     cicilan: Array.isArray(r.cicilan) ? r.cicilan : [],
     catatan: r.catatan ?? undefined,
+    createdBy: r.created_by ?? r.user_id ?? null,
   };
 }
 function piutangToRow(p: Piutang, userId: string) {
   return {
     id: p.id,
     user_id: userId,
+    created_by: p.createdBy ?? userId,
     transaction_id: null, // ID list dipisah koma -> tidak fit FK; simpan di catatan
     nama_pelanggan: p.namaPelanggan,
     telepon: p.telepon || null,
