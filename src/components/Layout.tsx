@@ -3,6 +3,7 @@ import { LayoutDashboard, Package, ShoppingCart, Wallet, BarChart3, LogOut, User
 import { supabase } from "@/integrations/supabase/client";
 import { clearCache, isOwner } from "@/lib/storage";
 import { toast } from "sonner";
+import { NotificationsBell } from "./NotificationsBell";
 
 const navOwner = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard },
@@ -66,6 +67,7 @@ export function Layout() {
               );
             })}
           </nav>
+          <NotificationsBell />
           <button
             onClick={logout}
             title="Keluar"
