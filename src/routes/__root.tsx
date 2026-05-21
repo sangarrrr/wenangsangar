@@ -171,7 +171,7 @@ function AuthGate() {
   useEffect(() => {
     if (status !== "authed" || !hydrated) return;
     if (isOwner()) return;
-    const allowed = ["/kasir", "/stok", "/login"];
+    const allowed = ["/kasir", "/stok", "/piutang", "/login"];
     if (!allowed.includes(location.pathname)) {
       toast.error("Akses ditolak. Halaman ini khusus Owner.");
       navigate({ to: "/kasir" });
