@@ -467,6 +467,42 @@ function StokPage() {
           </div>
         </div>
       )}
+
+      {confirmDel && (
+        <div className="fixed inset-0 z-30 flex items-center justify-center bg-foreground/50 p-4">
+          <div className="w-full max-w-sm rounded-2xl bg-card p-5 shadow-xl">
+            <div className="mb-3 flex items-start gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-destructive/10 text-destructive">
+                <AlertCircle className="h-5 w-5" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold">Hapus Barang?</h3>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Yakin hapus <b className="text-foreground">{confirmDel.nama}</b>? Owner akan
+                  dinotifikasi & data tidak bisa di-undo.
+                </p>
+              </div>
+            </div>
+            <div className="flex gap-2 pt-2">
+              <button
+                disabled={deleting}
+                onClick={() => setConfirmDel(null)}
+                className="flex-1 rounded-lg border border-border px-4 py-2.5 text-sm font-medium hover:bg-accent disabled:opacity-50"
+              >
+                Batal
+              </button>
+              <button
+                disabled={deleting}
+                onClick={konfirmasiHapus}
+                className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg bg-destructive px-4 py-2.5 text-sm font-semibold text-destructive-foreground disabled:opacity-60"
+              >
+                {deleting && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                Ya, Hapus
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
