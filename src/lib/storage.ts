@@ -12,6 +12,9 @@ export type Barang = {
   hargaJual: number;
   expired: string | null;
   imageUrl?: string;
+  approvalStatus?: "approved" | "pending_add" | "pending_delete";
+  requestedBy?: string | null;
+  createdAt?: string;
 };
 
 export type Transaksi = {
@@ -70,6 +73,7 @@ export type ReturLog = {
 
 // ===== In-memory cache (per session, hydrated from Supabase) =====
 let _barang: Barang[] = [];
+let _pendingBarang: Barang[] = [];
 let _trx: Transaksi[] = [];
 let _piutang: Piutang[] = [];
 let _peng: Pengeluaran[] = [];
@@ -142,6 +146,9 @@ function rowToBarang(r: any): Barang {
     hargaJual: Number(r.harga_jual),
     expired: r.expired_date,
     imageUrl: r.image_url ?? undefined,
+    approvalStatus: (r.approval_status as Barang["approvalStatus"]) ?? "approved",
+    requestedBy: r.requested_by ?? null,
+    createdAt: r.created_at ?? undefined,
   };
 }
 function barangToRow(b: Barang, userId: string) {
@@ -302,6 +309,7 @@ export async function hydrateAll(): Promise<void> {
   if (exp.error) throw exp.error;
   if (ret.error) throw ret.error;
   _barang = (pr.data ?? []).map(rowToBarang);
+  splitBarang();
   _trx = (tr.data ?? []).map(rowToTrx);
   _piutang = (rec.data ?? []).map(rowToPiutang);
   _peng = (exp.data ?? []).map(rowToPeng);
@@ -389,6 +397,7 @@ function setupRealtime(uid: string) {
           .select("*")
           .order("created_at", { ascending: false });
         _barang = (data ?? []).map(rowToBarang);
+        splitBarang();
         emit("barang");
       },
     )
@@ -422,17 +431,114 @@ async function syncTable<T extends { id: string }>(
 export function getBarang(): Barang[] {
   return _barang;
 }
+export function getPendingBarang(): Barang[] {
+  return _pendingBarang;
+}
+
+// Internal: split fetched products into approved (visible) vs pending (queue).
+function splitBarang() {
+  const all = _barang;
+  _barang = all.filter((b) => (b.approvalStatus ?? "approved") === "approved");
+  _pendingBarang = all.filter(
+    (b) => b.approvalStatus === "pending_add" || b.approvalStatus === "pending_delete",
+  );
+}
+
+// saveBarang: diff against current approved list and perform granular ops.
+// Karyawan: deletions become soft-delete (pending_delete); inserts auto-flagged pending_add by trigger.
+// Owner: deletions hard-delete; inserts auto-approved by trigger.
 export function saveBarang(items: Barang[]) {
   const prev = _barang;
   _barang = items;
   emit("barang");
-  syncTable("products", prev, items, barangToRow).catch((e) => {
+  syncBarang(prev, items).catch((e) => {
     console.error("[saveBarang] gagal:", e);
-    try {
-      // toast lazy
-      import("sonner").then(({ toast }) => toast.error("Gagal simpan barang: " + e.message));
-    } catch {}
+    import("sonner").then(({ toast }) => toast.error("Gagal simpan barang: " + e.message));
   });
+}
+
+async function syncBarang(prev: Barang[], next: Barang[]) {
+  const userId = await getUserId();
+  const prevById = new Map(prev.map((p) => [p.id, p]));
+  const nextIds = new Set(next.map((n) => n.id));
+
+  const toInsert: Barang[] = [];
+  const toUpdate: Barang[] = [];
+  for (const n of next) {
+    if (prevById.has(n.id)) toUpdate.push(n);
+    else toInsert.push(n);
+  }
+  const toRemove = prev.filter((p) => !nextIds.has(p.id));
+
+  // INSERT new (trigger sets approval_status & requested_by)
+  if (toInsert.length > 0) {
+    const rows = toInsert.map((b) => barangToRow(b, userId));
+    const { error } = await (supabase.from("products" as any) as any).insert(rows);
+    if (error) throw error;
+  }
+
+  // UPDATE existing — never touch approval_status/requested_by here
+  for (const b of toUpdate) {
+    const row = barangToRow(b, userId);
+    delete (row as any).id;
+    const { error } = await supabase.from("products").update(row).eq("id", b.id);
+    if (error) throw error;
+  }
+
+  // DELETE: owner → hard delete; karyawan → mark pending_delete
+  if (toRemove.length > 0) {
+    if (isOwner()) {
+      const { error } = await supabase
+        .from("products")
+        .delete()
+        .in(
+          "id",
+          toRemove.map((b) => b.id),
+        );
+      if (error) throw error;
+    } else {
+      for (const b of toRemove) {
+        const { error } = await supabase
+          .from("products")
+          .update({ approval_status: "pending_delete", requested_by: userId })
+          .eq("id", b.id);
+        if (error) throw error;
+      }
+    }
+  }
+}
+
+// ===== Approval actions (Owner only) =====
+export async function approveProductAction(id: string): Promise<void> {
+  const item = _pendingBarang.find((b) => b.id === id);
+  if (!item) throw new Error("Permintaan tidak ditemukan");
+  if (item.approvalStatus === "pending_delete") {
+    const { error } = await supabase.from("products").delete().eq("id", id);
+    if (error) throw error;
+  } else {
+    const { error } = await supabase
+      .from("products")
+      .update({ approval_status: "approved" })
+      .eq("id", id);
+    if (error) throw error;
+  }
+}
+
+export async function rejectProductAction(id: string): Promise<void> {
+  const item = _pendingBarang.find((b) => b.id === id);
+  if (!item) throw new Error("Permintaan tidak ditemukan");
+  if (item.approvalStatus === "pending_add") {
+    // batalkan: hapus row yang belum disetujui
+    const { error } = await supabase.from("products").delete().eq("id", id);
+    if (error) throw error;
+  } else {
+    // batalkan permintaan hapus: kembalikan ke approved
+    const { error } = await supabase
+      .from("products")
+      .update({ approval_status: "approved" })
+      .eq("id", id);
+    if (error) throw error;
+  }
 }
 
 // ===== Transaksi =====

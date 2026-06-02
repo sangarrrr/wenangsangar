@@ -15,6 +15,7 @@ import { Route as PiutangRouteImport } from './routes/piutang'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as LaporanRouteImport } from './routes/laporan'
 import { Route as KasirRouteImport } from './routes/kasir'
+import { Route as ApprovalsRouteImport } from './routes/approvals'
 import { Route as IndexRouteImport } from './routes/index'
 
 const UsersRoute = UsersRouteImport.update({
@@ -47,6 +48,11 @@ const KasirRoute = KasirRouteImport.update({
   path: '/kasir',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApprovalsRoute = ApprovalsRouteImport.update({
+  id: '/approvals',
+  path: '/approvals',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
@@ -55,6 +61,7 @@ const IndexRoute = IndexRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/approvals': typeof ApprovalsRoute
   '/kasir': typeof KasirRoute
   '/laporan': typeof LaporanRoute
   '/login': typeof LoginRoute
@@ -64,6 +71,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/approvals': typeof ApprovalsRoute
   '/kasir': typeof KasirRoute
   '/laporan': typeof LaporanRoute
   '/login': typeof LoginRoute
@@ -74,6 +82,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/approvals': typeof ApprovalsRoute
   '/kasir': typeof KasirRoute
   '/laporan': typeof LaporanRoute
   '/login': typeof LoginRoute
@@ -85,6 +94,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/approvals'
     | '/kasir'
     | '/laporan'
     | '/login'
@@ -92,10 +102,19 @@ export interface FileRouteTypes {
     | '/stok'
     | '/users'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/kasir' | '/laporan' | '/login' | '/piutang' | '/stok' | '/users'
+  to:
+    | '/'
+    | '/approvals'
+    | '/kasir'
+    | '/laporan'
+    | '/login'
+    | '/piutang'
+    | '/stok'
+    | '/users'
   id:
     | '__root__'
     | '/'
+    | '/approvals'
     | '/kasir'
     | '/laporan'
     | '/login'
@@ -106,6 +125,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  ApprovalsRoute: typeof ApprovalsRoute
   KasirRoute: typeof KasirRoute
   LaporanRoute: typeof LaporanRoute
   LoginRoute: typeof LoginRoute
@@ -158,6 +178,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof KasirRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/approvals': {
+      id: '/approvals'
+      path: '/approvals'
+      fullPath: '/approvals'
+      preLoaderRoute: typeof ApprovalsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -170,6 +197,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  ApprovalsRoute: ApprovalsRoute,
   KasirRoute: KasirRoute,
   LaporanRoute: LaporanRoute,
   LoginRoute: LoginRoute,
