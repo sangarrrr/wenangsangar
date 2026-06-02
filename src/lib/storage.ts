@@ -309,6 +309,7 @@ export async function hydrateAll(): Promise<void> {
   if (exp.error) throw exp.error;
   if (ret.error) throw ret.error;
   _barang = (pr.data ?? []).map(rowToBarang);
+  splitBarang();
   _trx = (tr.data ?? []).map(rowToTrx);
   _piutang = (rec.data ?? []).map(rowToPiutang);
   _peng = (exp.data ?? []).map(rowToPeng);
