@@ -12,6 +12,9 @@ export type Barang = {
   hargaJual: number;
   expired: string | null;
   imageUrl?: string;
+  approvalStatus?: "approved" | "pending_add" | "pending_delete";
+  requestedBy?: string | null;
+  createdAt?: string;
 };
 
 export type Transaksi = {
@@ -70,6 +73,7 @@ export type ReturLog = {
 
 // ===== In-memory cache (per session, hydrated from Supabase) =====
 let _barang: Barang[] = [];
+let _pendingBarang: Barang[] = [];
 let _trx: Transaksi[] = [];
 let _piutang: Piutang[] = [];
 let _peng: Pengeluaran[] = [];
@@ -142,6 +146,9 @@ function rowToBarang(r: any): Barang {
     hargaJual: Number(r.harga_jual),
     expired: r.expired_date,
     imageUrl: r.image_url ?? undefined,
+    approvalStatus: (r.approval_status as Barang["approvalStatus"]) ?? "approved",
+    requestedBy: r.requested_by ?? null,
+    createdAt: r.created_at ?? undefined,
   };
 }
 function barangToRow(b: Barang, userId: string) {
