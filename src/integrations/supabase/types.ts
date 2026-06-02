@@ -118,6 +118,7 @@ export type Database = {
       }
       products: {
         Row: {
+          approval_status: string
           created_at: string
           created_by: string | null
           expired_date: string | null
@@ -128,11 +129,13 @@ export type Database = {
           kategori: string
           margin_persen: number
           nama_barang: string
+          requested_by: string | null
           stok: number
           stok_awal: number
           user_id: string
         }
         Insert: {
+          approval_status?: string
           created_at?: string
           created_by?: string | null
           expired_date?: string | null
@@ -143,11 +146,13 @@ export type Database = {
           kategori?: string
           margin_persen?: number
           nama_barang: string
+          requested_by?: string | null
           stok?: number
           stok_awal?: number
           user_id: string
         }
         Update: {
+          approval_status?: string
           created_at?: string
           created_by?: string | null
           expired_date?: string | null
@@ -158,6 +163,7 @@ export type Database = {
           kategori?: string
           margin_persen?: number
           nama_barang?: string
+          requested_by?: string | null
           stok?: number
           stok_awal?: number
           user_id?: string
