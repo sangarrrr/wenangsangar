@@ -1,5 +1,5 @@
 import { Link, Outlet, useLocation, useNavigate } from "@tanstack/react-router";
-import { LayoutDashboard, Package, ShoppingCart, Wallet, BarChart3, LogOut, Users } from "lucide-react";
+import { LayoutDashboard, Package, ShoppingCart, Wallet, BarChart3, LogOut, Users, ClipboardCheck } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { clearCache, isOwner } from "@/lib/storage";
 import { toast } from "sonner";
@@ -11,6 +11,7 @@ const navOwner = [
   { to: "/kasir", label: "Kasir", icon: ShoppingCart },
   { to: "/piutang", label: "Piutang", icon: Wallet },
   { to: "/laporan", label: "Laporan", icon: BarChart3 },
+  { to: "/approvals", label: "Approval", icon: ClipboardCheck },
   { to: "/users", label: "User", icon: Users },
 ] as const;
 const navKaryawan = [
