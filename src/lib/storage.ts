@@ -397,6 +397,7 @@ function setupRealtime(uid: string) {
           .select("*")
           .order("created_at", { ascending: false });
         _barang = (data ?? []).map(rowToBarang);
+        splitBarang();
         emit("barang");
       },
     )
