@@ -12,6 +12,7 @@ import {
   type Barang,
 } from "@/lib/storage";
 import { useRealtimeProducts } from "@/hooks/useRealtimeProducts";
+import { isOwner } from "@/lib/storage";
 import { toast } from "sonner";
 import { Pencil, Trash2, Plus, X, AlertTriangle, Clock, Upload, ImageOff, Loader2, Package, AlertCircle, RefreshCw } from "lucide-react";
 import { uploadGambarKeCloudinary, CLOUDINARY_CONFIGURED } from "@/lib/cloudinary";
@@ -121,11 +122,17 @@ function StokPage() {
       persist(items.filter((b) => b.id !== target.id));
       await notifyOwners(
         "stock_deleted",
-        "Barang dihapus",
-        `Barang "${target.nama}" (stok ${target.stok}) dihapus dari inventory.`,
+        isOwner() ? "Barang dihapus" : "Permintaan hapus barang",
+        isOwner()
+          ? `Barang "${target.nama}" (stok ${target.stok}) dihapus dari inventory.`
+          : `Karyawan mengajukan penghapusan "${target.nama}" (stok ${target.stok}). Menunggu approval.`,
         { product_id: target.id, nama: target.nama, kategori: target.kategori, stok: target.stok },
       );
-      toast.success("Barang dihapus. Owner telah dinotifikasi.");
+      toast.success(
+        isOwner()
+          ? "Barang dihapus. Owner telah dinotifikasi."
+          : "Permintaan hapus dikirim ke Owner. Menunggu persetujuan.",
+      );
       setConfirmDel(null);
     } catch (e: any) {
       toast.error("Gagal menghapus: " + (e?.message ?? "Unknown"));
