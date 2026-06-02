@@ -186,11 +186,17 @@ function StokPage() {
           imageUrl: form.imageUrl || undefined,
         };
         persist([baru, ...items]);
-        toast.success("Barang ditambahkan.");
+        toast.success(
+          isOwner()
+            ? "Barang ditambahkan."
+            : "Permintaan tambah dikirim ke Owner. Menunggu persetujuan.",
+        );
         notifyOwners(
           "stock_added",
-          "Barang baru ditambahkan",
-          `"${nama}" ditambahkan (stok awal ${stokAwal}).`,
+          isOwner() ? "Barang baru ditambahkan" : "Permintaan tambah barang",
+          isOwner()
+            ? `"${nama}" ditambahkan (stok awal ${stokAwal}).`
+            : `Karyawan mengajukan penambahan "${nama}" (stok awal ${stokAwal}). Menunggu approval.`,
           { nama, stokAwal },
         );
       }
