@@ -43,12 +43,28 @@ function PiutangPage() {
     if (!konfirmLunas || processingLunas) return;
     setProcessingLunas(true);
     const p = konfirmLunas;
+    const sisa = p.sisaHutang;
     persist(
       items.map((x) =>
-        x.id === p.id ? { ...x, status: "Lunas", sisaHutang: 0 } : x,
+        x.id === p.id
+          ? {
+              ...x,
+              status: "Lunas",
+              sisaHutang: 0,
+              cicilan:
+                sisa > 0
+                  ? [
+                      ...x.cicilan,
+                      { tanggal: new Date().toISOString(), jumlah: sisa },
+                    ]
+                  : x.cicilan,
+            }
+          : x,
       ),
     );
-    toast.success(`Hutang ${p.namaPelanggan} ditandai LUNAS.`);
+    toast.success(
+      `Hutang ${p.namaPelanggan} ditandai LUNAS. Kas +${formatRupiah(sisa)}`,
+    );
     setKonfirmLunas(null);
     setTimeout(() => setProcessingLunas(false), 800);
   }
