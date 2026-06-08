@@ -726,29 +726,46 @@ export function getLabaTerealisasi(bulan: number, tahun: number) {
     .filter((t) => t.metode === "Cash")
     .reduce((s, t) => s + t.profit, 0);
 
-  // Profit per transaksi (semua periode, untuk lookup)
-  const trxProfitById = new Map<string, { profit: number; tanggal: string }>();
-  for (const t of _trx) trxProfitById.set(t.id, { profit: t.profit, tanggal: t.tanggal });
+  // Index piutang by linked transaksiId. Filter: anggap "aktif" hanya yang
+  // status != Lunas DAN sisaHutang > 0. Piutang lunas/terhapus = profit
+  // sudah terealisasi penuh.
+  const piutangByTrxId = new Map<string, { totalHutang: number; sisaHutang: number; status: string }>();
+  for (const p of _piutang) {
+    const ids = (p.transaksiId || "").split(",").map((s) => s.trim()).filter(Boolean);
+    for (const id of ids) {
+      piutangByTrxId.set(id, {
+        totalHutang: p.totalHutang || 0,
+        sisaHutang: p.sisaHutang || 0,
+        status: p.status,
+      });
+    }
+  }
 
   let labaPiutangRealized = 0;
-  for (const p of _piutang) {
-    if (!p.totalHutang) continue;
-    const ids = (p.transaksiId || "").split(",").map((s) => s.trim()).filter(Boolean);
-    const linked = ids
-      .map((id) => trxProfitById.get(id))
-      .filter((x): x is { profit: number; tanggal: string } => !!x)
-      .filter((x) => inPeriod(x.tanggal));
-    const totalProfitPiutang = linked.reduce((s, x) => s + x.profit, 0);
-    if (totalProfitPiutang <= 0) continue;
-    const fraksiBayar = Math.min(
-      1,
-      Math.max(0, (p.totalHutang - p.sisaHutang) / p.totalHutang),
-    );
-    labaPiutangRealized += totalProfitPiutang * fraksiBayar;
+  const debugRows: Array<{ id: string; profit: number; fraksi: number; reason: string }> = [];
+  for (const t of trxBulan) {
+    if (t.metode !== "Piutang") continue;
+    if (t.profit <= 0) continue;
+    const p = piutangByTrxId.get(t.id);
+    let fraksi = 1;
+    let reason = "no-record→assumed-paid";
+    if (p) {
+      const aktif = p.status !== "Lunas" && p.sisaHutang > 0;
+      if (!aktif) {
+        fraksi = 1;
+        reason = `status=${p.status} sisa=${p.sisaHutang}→lunas`;
+      } else if (p.totalHutang > 0) {
+        fraksi = Math.min(1, Math.max(0, (p.totalHutang - p.sisaHutang) / p.totalHutang));
+        reason = `partial ${p.totalHutang - p.sisaHutang}/${p.totalHutang}`;
+      }
+    }
+    labaPiutangRealized += t.profit * fraksi;
+    debugRows.push({ id: t.id, profit: t.profit, fraksi, reason });
   }
 
   const labaCair = labaCash + labaPiutangRealized;
   const labaTerkunci = Math.max(0, labaKotor - labaCair);
+  console.log("[getLabaTerealisasi]", { bulan, tahun, labaKotor, labaCash, labaPiutangRealized, labaCair, labaTerkunci, debugRows });
   return { labaKotor, labaCair, labaTerkunci };
 }
 
